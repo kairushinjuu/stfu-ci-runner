@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
-      STFU_PROTECTED_DIR: ${{ github.workspace }}/.private-output
+      CONFIDENTIAL_OUTPUT_DIR: ${{ github.workspace }}/.private-output
       SOURCE_ACCESS_TOKEN: ${{ secrets.SOURCE_ACCESS_TOKEN || secrets.STFU_PRIVATE_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -47,14 +47,16 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Execute trusted private source build
+        id: private_build
         shell: bash
         run: |
           set -euo pipefail
           umask 077
-          mkdir -p "$STFU_PROTECTED_DIR"
+          mkdir -p "$CONFIDENTIAL_OUTPUT_DIR"
           rc=0
-          bash ci/dispatch.sh > "$STFU_PROTECTED_DIR/build.log" 2>&1 || rc=$?
-          echo "$rc" > "$STFU_PROTECTED_DIR/exit-code.txt"
+          bash ci/dispatch.sh > "$CONFIDENTIAL_OUTPUT_DIR/build.log" 2>&1 || rc=$?
+          echo "$rc" > "$CONFIDENTIAL_OUTPUT_DIR/exit-code.txt"
+          echo "code=$rc" >> "$GITHUB_OUTPUT"
           echo "Private build executed. Diagnostics retained only in encrypted artifact."
       - name: Encrypt all build outputs before upload
         if: always()
@@ -62,12 +64,12 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          mkdir -p "$STFU_PROTECTED_DIR"
+          mkdir -p "$CONFIDENTIAL_OUTPUT_DIR"
           test -s ci/recipient.pub
-          tar -czf "$RUNNER_TEMP/private-output.tar.gz" -C "$STFU_PROTECTED_DIR" .
+          tar -czf "$RUNNER_TEMP/private-output.tar.gz" -C "$CONFIDENTIAL_OUTPUT_DIR" .
           age -R ci/recipient.pub -o "$GITHUB_WORKSPACE/output.age" "$RUNNER_TEMP/private-output.tar.gz"
           rm -f "$RUNNER_TEMP/private-output.tar.gz"
-          rm -rf "$STFU_PROTECTED_DIR" "$RUNNER_TEMP/private-source"
+          rm -rf "$CONFIDENTIAL_OUTPUT_DIR" "$RUNNER_TEMP/private-source"
       - name: Upload encrypted output only
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,3 +83,4 @@ jobs:
         shell: bash
         run: |
           test -f output.age && test -s output.age
+          test "${{ steps.private_build.outputs.code }}" = 0
