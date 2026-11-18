@@ -46,6 +46,12 @@ PY
 # Experimental SOS software mixer and Android AAudio. Silent mode remains default.
 # Fail closed if recovered stubs or strict NDK script do not match expected source.
 STFU_STAGE47_EXPERIMENTAL_AUDIO=I_UNDERSTAND_EXPERIMENTAL bash stfu-native/stage47-audio-research/enable_aaudio_experiment.sh
+# Stage52 private fatal-reason capture (unchanged termination semantics).
+# Records the actual translated guest runtime error in the existing exported
+# diagnostics log. Keep the proven Stage49 RGB565 renderer byte-identical.
+test -s stfu-native/stage52-diagnostics/android_runtime_logging.c
+install -m 0644 stfu-native/stage52-diagnostics/android_runtime_logging.c project/android-aot/android_runtime_logging.c
+grep -q 'native_runtime_fatal: %s' project/android-aot/android_runtime_logging.c
 # Stage51 private-only genuine guest input/controller overlay.
 # This is an authenticated checkout; the public repo contains no game source.
 control=stfu-native/stage51-control
