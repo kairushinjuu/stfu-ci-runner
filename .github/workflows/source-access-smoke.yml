@@ -1,0 +1,52 @@
+name: Generic confidential-source smoke test
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/source-access-smoke.yml']
+permissions:
+  contents: read
+jobs:
+  checkout-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      SOURCE_ACCESS_TOKEN: ${{ secrets.SOURCE_ACCESS_TOKEN || secrets.STFU_PRIVATE_READ_TOKEN }}
+      CONFIDENTIAL_OUTPUT_DIR: ${{ github.workspace }}/.private-output
+      CI_PROBE_ONLY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm access through source-independent runner
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$CONFIDENTIAL_OUTPUT_DIR"
+          rc=0
+          bash ci/dispatch.sh > "$CONFIDENTIAL_OUTPUT_DIR/checkout.log" 2>&1 || rc=$?
+          echo "$rc" > "$CONFIDENTIAL_OUTPUT_DIR/exit-code.txt"
+          echo "status=$rc" >> "$GITHUB_OUTPUT"
+      - name: Encrypt evidence before upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -qq -y age >/dev/null
+          tar -czf "$RUNNER_TEMP/private-smoke.tar.gz" -C "$CONFIDENTIAL_OUTPUT_DIR" .
+          age -R ci/recipient.pub -o smoke.age "$RUNNER_TEMP/private-smoke.tar.gz"
+          rm -rf "$CONFIDENTIAL_OUTPUT_DIR" "$RUNNER_TEMP/private-source" "$RUNNER_TEMP/private-smoke.tar.gz"
+      - name: Upload encrypted smoke result only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protected-smoke
+          path: smoke.age
+          retention-days: 2
+          if-no-files-found: error
+      - name: Enforce private access success
+        if: always()
+        shell: bash
+        run: test "${{ steps.check.outputs.status }}" = 0
