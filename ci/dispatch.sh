@@ -26,6 +26,6 @@ basic=$(printf 'x-access-token:%s' "$SOURCE_ACCESS_TOKEN" | base64 -w0)
 export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
 export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $basic"
-git clone --quiet --depth=1 "https://github.com/$source_repo.git" "$STFU_PRIVATE_DIR"
-test -s "$STFU_PRIVATE_DIR/ci-private/run.sh"
-exec bash "$STFU_PRIVATE_DIR/ci-private/run.sh"
+git clone --quiet --depth=1 "https://github.com/$source_repo.git" "$PRIVATE_SOURCE_DIR"
+test -s "$PRIVATE_SOURCE_DIR/ci-private/run.sh"
+exec bash "$PRIVATE_SOURCE_DIR/ci-private/run.sh"
