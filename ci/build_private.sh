@@ -30,7 +30,7 @@ export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
 test -x "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version > "$STFU_PROTECTED_DIR/ndk-version.txt"
 printf '%s\n' "$(git rev-parse HEAD)" > "$STFU_PROTECTED_DIR/private-source-commit.txt"
-JOBS=3 bash project/android-aot/build_android_strict.sh
+(cd project && JOBS=3 bash android-aot/build_android_strict.sh)
 so=project/android-aot/build-real-ndk/libstfu.so
 test -s "$so"
 file "$so" > "$STFU_PROTECTED_DIR/native-elf-file.txt"
