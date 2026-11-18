@@ -13,6 +13,14 @@ printf '%s  %s\n' 'dac686aed30110b0012a4422b2f4a0a79528694e00fd9edfd8ee2c87f257f
 unzip -q "$RUNNER_TEMP/stfu-private-source.zip" -d .
 test "$(find project/src/gen/sttng -maxdepth 1 -type f -name 'gen_*.c' | wc -l)" -eq 108
 cp stfu-native/stage43-render/headless_smoke_native.c project/android-aot/headless_smoke_native.c
+# Stage46 diagnostics attach to REAL native window/guest execution paths.
+overlay=stfu-native/stage46-debug
+for file in stfu_diag.h native_window_blit.c native_activity_shell.c android_game_entry.c android_runtime_logging.c; do
+  test -s "$overlay/$file"
+  install -m 0644 "$overlay/$file" "project/android-aot/$file"
+done
+grep -q 'stfu_diag_event' project/android-aot/native_window_blit.c
+
 grep -q 'STFU_ANDROID_GUEST_PRESENT_ATTEMPT' project/android-aot/headless_smoke_native.c
 grep -q 'video_present(0)' project/android-aot/headless_smoke_native.c
 python3 - <<'PY'
@@ -49,6 +57,10 @@ cp stfu-native/stage40-three-packages/OriginalSplitMediaImporter.java "$app/src/
 for name in SetupActivity.java GameActivity.java LaunchPreparation.java; do
   cp "stfu-native/stage41-runtime/$name" "$app/src/main/java/org/stfu/nativeport/$name"
 done
+# Stage46 debug overlay/export added to both NativeActivity and SetupActivity.
+for file in GameActivity.java SetupActivity.java; do
+  install -m 0644 "$overlay/$file" "$app/src/main/java/org/stfu/nativeport/$file"
+done
 install -m 0644 "$so" "$app/src/main/jniLibs/arm64-v8a/libstfu.so"
 python3 - <<'PY'
 from pathlib import Path
@@ -56,10 +68,10 @@ p=Path('project/android-aot/android-app/app/build.gradle')
 s=p.read_text()
 assert "versionCode 1" in s
 assert "applicationId 'org.stfu.nativeport'" in s
-s=s.replace('versionCode 1','versionCode 6').replace('0.0.35-experimental','0.0.43-real-frame-presentation').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage43'")
+s=s.replace('versionCode 1','versionCode 7').replace('0.0.35-experimental','0.0.46-debug-overlay').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage46'")
 p.write_text(s)
 p=Path('project/android-aot/android-app/app/src/main/AndroidManifest.xml')
-s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage43 Native Render Test')
+s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage46 Native Debug')
 p.write_text(s)
 PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
@@ -79,5 +91,5 @@ readelf -h "$RUNNER_TEMP/stfu-packaged.so" | grep -q -E 'Machine:.*AArch64'
 "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$STFU_PROTECTED_DIR/apk-signing.txt"
 grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$STFU_PROTECTED_DIR/apk-signing.txt"
 sha256sum "$apk" > "$STFU_PROTECTED_DIR/sha256-apk.txt"
-install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage43_Real_Frame_ARM64_Debug.apk"
+install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage46_Debug_Overlay_ARM64.apk"
 echo success > "$STFU_PROTECTED_DIR/build-result.txt"
