@@ -1,0 +1,1 @@
+Request: run confidential Android build through generic encrypted CI dispatcher.
