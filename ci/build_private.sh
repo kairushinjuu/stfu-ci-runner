@@ -46,6 +46,16 @@ PY
 # Experimental SOS software mixer and Android AAudio. Silent mode remains default.
 # Fail closed if recovered stubs or strict NDK script do not match expected source.
 STFU_STAGE47_EXPERIMENTAL_AUDIO=I_UNDERSTAND_EXPERIMENTAL bash stfu-native/stage47-audio-research/enable_aaudio_experiment.sh
+# Stage51 private-only genuine guest input/controller overlay.
+# This is an authenticated checkout; the public repo contains no game source.
+control=stfu-native/stage51-control
+for name in android_input_bridge.c android_input_bridge.h; do
+  test -s "$control/$name"
+  install -m 0644 "$control/$name" "project/android-aot/$name"
+done
+# Non-interfering host check: Java JNI -> native queue -> DOS input transitions.
+gcc -std=c11 -O2 -Iproject/android-aot "$control/android_input_bridge.c"   "$control/ndk_input_stubs.c" "$control/control_queue_host_test.c"   -o "$RUNNER_TEMP/stfu-stage51-input-host"
+"$RUNNER_TEMP/stfu-stage51-input-host" > "$STFU_PROTECTED_DIR/stage51-input-host-test.txt"
 bash -n project/android-aot/build_android_strict.sh
 grep -q -- '-laaudio' project/android-aot/build_android_strict.sh
 grep -q -- 'native_sound_aaudio' project/android-aot/build_android_strict.sh
@@ -78,6 +88,9 @@ done
 for file in GameActivity.java SetupActivity.java LaunchPreparation.java; do
   install -m 0644 "stfu-native/stage48-debug/$file" "$app/src/main/java/org/stfu/nativeport/$file"
 done
+test -s "$control/GameActivity.java"
+install -m 0644 "$control/GameActivity.java" "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
+grep -q 'nativeControl' "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
 grep -q 'new Dialog(this)' "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
 grep -q 'prepareExperimentalAudio' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
 install -m 0644 "$so" "$app/src/main/jniLibs/arm64-v8a/libstfu.so"
@@ -87,10 +100,10 @@ p=Path('project/android-aot/android-app/app/build.gradle')
 s=p.read_text()
 assert "versionCode 1" in s
 assert "applicationId 'org.stfu.nativeport'" in s
-s=s.replace('versionCode 1','versionCode 9').replace('0.0.35-experimental','0.0.49-rgb565-render-fix').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage49'")
+s=s.replace('versionCode 1','versionCode 10').replace('0.0.35-experimental','0.0.51-touch-controller').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage51'")
 p.write_text(s)
 p=Path('project/android-aot/android-app/app/src/main/AndroidManifest.xml')
-s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage49 RGB565 Debug + Audio')
+s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage51 RGB565 Touch Controls + Experimental Audio')
 p.write_text(s)
 PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
@@ -110,5 +123,5 @@ readelf -h "$RUNNER_TEMP/stfu-packaged.so" | grep -q -E 'Machine:.*AArch64'
 "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$STFU_PROTECTED_DIR/apk-signing.txt"
 grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$STFU_PROTECTED_DIR/apk-signing.txt"
 sha256sum "$apk" > "$STFU_PROTECTED_DIR/sha256-apk.txt"
-install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage49_RGB565_Render_AAudio_ARM64.apk"
+install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage51_RGB565_Touch_Controller_ARM64.apk"
 echo success > "$STFU_PROTECTED_DIR/build-result.txt"
