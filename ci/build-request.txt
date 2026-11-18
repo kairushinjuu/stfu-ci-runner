@@ -1,0 +1,4 @@
+Stage43 protected source compilation request
+Private source: kairushinjuu/2004s branch stfu-stage42-private-media-test
+Requested: 2026-11-18; official Android NDK r27c, verifiable AArch64 ELF and APK.
+No original game media or credentials included.
