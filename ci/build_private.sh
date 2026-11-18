@@ -52,6 +52,13 @@ STFU_STAGE47_EXPERIMENTAL_AUDIO=I_UNDERSTAND_EXPERIMENTAL bash stfu-native/stage
 test -s stfu-native/stage52-diagnostics/android_runtime_logging.c
 install -m 0644 stfu-native/stage52-diagnostics/android_runtime_logging.c project/android-aot/android_runtime_logging.c
 grep -q 'native_runtime_fatal: %s' project/android-aot/android_runtime_logging.c
+# Stage53: source-derived guest module loader error diagnosis. This is a
+# private-only replayable overlay; the original translated game branch, exit
+# and renderer behavior are deliberately unchanged.
+test -s stfu-native/stage53-static-trace/instrument_guest_startup.py
+python3 stfu-native/stage53-static-trace/instrument_guest_startup.py project
+grep -q 'resource-loader-failure' project/src/gen/sttng/gen_008.c
+grep -q 'main-initialization-failure' project/src/gen/sttng/gen_001.c
 # Stage51 private-only genuine guest input/controller overlay.
 # This is an authenticated checkout; the public repo contains no game source.
 control=stfu-native/stage51-control
