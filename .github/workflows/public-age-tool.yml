@@ -1,0 +1,29 @@
+name: Public age decryption tool availability
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/public-age-tool.yml']
+permissions:
+  contents: read
+jobs:
+  age-tool:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install distro age package (no private source or secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+          mkdir -p public-age-tools
+          cp "$(command -v age)" public-age-tools/age
+          chmod 755 public-age-tools/age
+          age --version
+          sha256sum public-age-tools/age > public-age-tools/sha256.txt
+          dpkg-query -W age > public-age-tools/package.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-age-linux-amd64
+          path: public-age-tools/
+          retention-days: 3
