@@ -128,10 +128,10 @@ p=Path('project/android-aot/android-app/app/build.gradle')
 s=p.read_text()
 assert "versionCode 1" in s
 assert "applicationId 'org.stfu.nativeport'" in s
-s=s.replace('versionCode 1','versionCode 10').replace('0.0.35-experimental','0.0.51-touch-controller').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage51'")
+s=s.replace('versionCode 1','versionCode 14').replace('0.0.35-experimental','0.0.54-dos-layout-repair').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage54'")
 p.write_text(s)
 p=Path('project/android-aot/android-app/app/src/main/AndroidManifest.xml')
-s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage51 RGB565 Touch Controls + Experimental Audio')
+s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage54 DOS Layout RGB565 Controls')
 p.write_text(s)
 PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
@@ -151,5 +151,5 @@ readelf -h "$RUNNER_TEMP/stfu-packaged.so" | grep -q -E 'Machine:.*AArch64'
 "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$STFU_PROTECTED_DIR/apk-signing.txt"
 grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$STFU_PROTECTED_DIR/apk-signing.txt"
 sha256sum "$apk" > "$STFU_PROTECTED_DIR/sha256-apk.txt"
-install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage51_RGB565_Touch_Controller_ARM64.apk"
+install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage54_DOS_Layout_Repair_ARM64.apk"
 echo success > "$STFU_PROTECTED_DIR/build-result.txt"
