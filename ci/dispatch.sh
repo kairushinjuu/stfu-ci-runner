@@ -5,8 +5,8 @@ set +x
 umask 077
 : "${SOURCE_ACCESS_TOKEN:?private token secret missing}"
 : "${ANDROID_SDK_ROOT:?Android SDK required}"
-: "${STFU_PROTECTED_DIR:?restricted build output required}"
-export STFU_PRIVATE_DIR="$RUNNER_TEMP/private-source"
+: "${CONFIDENTIAL_OUTPUT_DIR:?restricted build output required}"
+export PRIVATE_SOURCE_DIR="$RUNNER_TEMP/private-source"
 # Token scope should grant access to exactly one intended private source repository.
 # Any ambiguity fails closed, rather than guessing a repository to build.
 source_repo=$(python3 - <<'PY'
