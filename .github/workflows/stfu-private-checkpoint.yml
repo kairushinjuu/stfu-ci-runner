@@ -1,0 +1,61 @@
+name: STFU private full-source checkpoint (encrypted)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stfu-private-checkpoint.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secure-checkpoint:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout trusted public CI code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout whole current private STFU development branch
+        uses: actions/checkout@v4
+        with:
+          repository: kairushinjuu/2004s
+          ref: stfu-stage42-private-media-test
+          token: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+          path: private
+      - name: Create reproducible private source and public harness checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/stfu-checkpoint/private_repo" "$RUNNER_TEMP/stfu-checkpoint/public_ci"
+          (cd private && tar -cf - --exclude=.git .) | (cd "$RUNNER_TEMP/stfu-checkpoint/private_repo" && tar -xf -)
+          (tar -cf - --exclude=.git --exclude=private .) | (cd "$RUNNER_TEMP/stfu-checkpoint/public_ci" && tar -xf -)
+          { printf 'private_sha='; git -C private rev-parse HEAD; printf 'public_sha='; git rev-parse HEAD; } > "$RUNNER_TEMP/stfu-checkpoint/REPOSITORY_HEADS.txt"
+          test -s "$RUNNER_TEMP/stfu-checkpoint/private_repo/stfu-native/source-chunks/part000.bin"
+          test -s "$RUNNER_TEMP/stfu-checkpoint/private_repo/stfu-native/stage49-render/native_window_blit.c"
+          test -s "$RUNNER_TEMP/stfu-checkpoint/private_repo/stfu-native/stage48-debug/GameActivity.java"
+          tar -czf "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz" -C "$RUNNER_TEMP/stfu-checkpoint" .
+          sha256sum "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz" > "$RUNNER_TEMP/PRIVATE_SHA256.txt"
+          test -s "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz"
+      - name: Encrypt confidential snapshot with existing public key
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq >/dev/null 2>&1
+          sudo apt-get install -y -qq age >/dev/null 2>&1
+          age -R ci/age_artifact_key.pub -o stfu-full-source-snapshot.age "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz"
+          test -s stfu-full-source-snapshot.age
+          rm -rf "$RUNNER_TEMP/stfu-checkpoint"
+          shred -u "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz" || rm -f "$RUNNER_TEMP/stfu-branch-snapshot.tar.gz"
+          rm -rf private
+          echo 'Encrypted snapshot created; never publish plaintext private project data.'
+      - name: Upload encrypted snapshot only
+        uses: actions/upload-artifact@v4
+        with:
+          name: stfu-private-full-branch-encrypted
+          path: stfu-full-source-snapshot.age
+          retention-days: 7
+          if-no-files-found: error
