@@ -13,6 +13,7 @@ jobs:
       SOURCE_ACCESS_TOKEN: ${{ secrets.SOURCE_ACCESS_TOKEN || secrets.STFU_PRIVATE_READ_TOKEN }}
       CONFIDENTIAL_OUTPUT_DIR: ${{ github.workspace }}/.private-output
       CI_PROBE_ONLY: '1'
+      ANDROID_SDK_ROOT: /tmp/private-checkout-probe
     steps:
       - uses: actions/checkout@v4
         with:
