@@ -1,0 +1,36 @@
+name: Public harness security and syntax checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'ci/**'
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  lint-public-harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify build scripts and public output policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ci/build_private.sh
+          grep -q -- '--no-undefined' ci/build_private.sh
+          grep -q 'runs-on: ubuntu-24.04' .github/workflows/stfu-private-build.yml
+          grep -q "STFU_PRIVATE_READ_TOKEN" .github/workflows/stfu-private-build.yml
+          grep -q 'stfu-stage43-protected.age' .github/workflows/stfu-private-build.yml
+          grep -q 'age -R ci/age_artifact_key.pub' .github/workflows/stfu-private-build.yml
+          if grep -E '^  (pull_request|pull_request_target):' .github/workflows/stfu-private-build.yml; then
+            echo "Unsafe PR trigger detected on token-bearing private build"; exit 1
+          fi
+          if grep -E '^[[:space:]]+path:.*\*\.apk|^[[:space:]]+path:.*\*\.log' .github/workflows/stfu-private-build.yml; then
+            echo "Unsafe plaintext artifact upload"; exit 1
+          fi
+          echo "Public harness static security/syntax checks passed; no private assets or secrets required."
