@@ -1,0 +1,64 @@
+name: STFU Stage47 experimental Android AAudio compile probe
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stfu-stage47-audio-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audio-probe:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: kairushinjuu/2004s
+          ref: stfu-stage42-private-media-test
+          token: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+          path: private
+          persist-credentials: false
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+      - name: Official NDK AAudio source compile (NOT enabled in game APK)
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/stfu-audio-protected"
+          rc=0
+          {
+            sdkmanager --install 'ndk;27.2.12479018'
+            cat private/stfu-native/source-chunks/part*.bin > "$RUNNER_TEMP/stfu-original-source.zip"
+            echo 'dac686aed30110b0012a4422b2f4a0a79528694e00fd9edfd8ee2c87f257f6ac  '"$RUNNER_TEMP/stfu-original-source.zip" | sha256sum -c -
+            unzip -q "$RUNNER_TEMP/stfu-original-source.zip" -d private
+            CC="$ANDROID_SDK_ROOT/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+            "$CC" --version
+            "$CC" -std=c11 -O1 -fPIC -pthread -Wall -Wextra -Werror -Wno-unused-parameter -D__ANDROID__ -DSTFU_USE_REAL_NDK -Iprivate/project/src/rt -Iprivate/project/android-aot -Iprivate/project/android-aot/include -Iprivate/stfu-native/stage46-debug -c private/stfu-native/stage47-audio-research/native_sound_aaudio.c -o "$RUNNER_TEMP/stfu-audio-protected/native_sound_aaudio.o"
+            file "$RUNNER_TEMP/stfu-audio-protected/native_sound_aaudio.o"
+          } > "$RUNNER_TEMP/stfu-audio-protected/compiler.log" 2>&1 || rc=$?
+          printf '%s\n' "$rc" > "$RUNNER_TEMP/stfu-audio-protected/exit-code.txt"
+          exit "$rc"
+      - name: Encrypt result before any upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -y -qq age >/dev/null
+          test -d "$RUNNER_TEMP/stfu-audio-protected"
+          tar -czf "$RUNNER_TEMP/stfu-audio-logs.tar.gz" -C "$RUNNER_TEMP/stfu-audio-protected" .
+          age -R ci/age_artifact_key.pub -o stage47-audio-probe.age "$RUNNER_TEMP/stfu-audio-logs.tar.gz"
+          rm -f "$RUNNER_TEMP/stfu-audio-logs.tar.gz"
+          rm -rf private "$RUNNER_TEMP/stfu-audio-protected"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage47-aaudio-encrypted-compile
+          retention-days: 3
+          if-no-files-found: warn
+          path: stage47-audio-probe.age
