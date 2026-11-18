@@ -1,0 +1,83 @@
+name: Android CI dispatch (encrypted output)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-dispatch.yml'
+      - 'ci/dispatch.sh'
+      - 'ci/build-request-generic.txt'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  confidential-build:
+    if: github.repository_visibility == 'public' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      STFU_PROTECTED_DIR: ${{ github.workspace }}/.private-output
+      SOURCE_ACCESS_TOKEN: ${{ secrets.SOURCE_ACCESS_TOKEN || secrets.STFU_PRIVATE_READ_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate restricted source access
+        shell: bash
+        run: |
+          set -eu
+          test -n "$SOURCE_ACCESS_TOKEN"
+          test -s ci/recipient.pub
+          bash -n ci/dispatch.sh
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+      - name: Install standard Android compilation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' >/dev/null
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -y -qq age >/dev/null
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Execute trusted private source build
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$STFU_PROTECTED_DIR"
+          rc=0
+          bash ci/dispatch.sh > "$STFU_PROTECTED_DIR/build.log" 2>&1 || rc=$?
+          echo "$rc" > "$STFU_PROTECTED_DIR/exit-code.txt"
+          echo "Private build executed. Diagnostics retained only in encrypted artifact."
+      - name: Encrypt all build outputs before upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$STFU_PROTECTED_DIR"
+          test -s ci/recipient.pub
+          tar -czf "$RUNNER_TEMP/private-output.tar.gz" -C "$STFU_PROTECTED_DIR" .
+          age -R ci/recipient.pub -o "$GITHUB_WORKSPACE/output.age" "$RUNNER_TEMP/private-output.tar.gz"
+          rm -f "$RUNNER_TEMP/private-output.tar.gz"
+          rm -rf "$STFU_PROTECTED_DIR" "$RUNNER_TEMP/private-source"
+      - name: Upload encrypted output only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protected-build
+          retention-days: 7
+          if-no-files-found: error
+          path: output.age
+      - name: Enforce private build success
+        if: always()
+        shell: bash
+        run: |
+          test -f output.age && test -s output.age
