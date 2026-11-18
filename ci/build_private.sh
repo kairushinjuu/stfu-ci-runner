@@ -23,6 +23,12 @@ grep -q 'stfu_diag_event' project/android-aot/native_window_blit.c
 # Stage48: heartbeat in the native looper, separate real-time Android Dialog.
 test -s stfu-native/stage48-debug/native_activity_shell.c
 install -m 0644 stfu-native/stage48-debug/native_activity_shell.c project/android-aot/native_activity_shell.c
+# Stage49: screenshot+export proved Android selected RGB_565 (4).
+# Stage46 silently skipped drawing all 620 buffers due to RGBA_8888-only branch.
+# Keep real game framebuffer, support RGB_565 and RGBA_8888, count actual pixels.
+install -m 0644 stfu-native/stage49-render/native_window_blit.c project/android-aot/native_window_blit.c
+grep -q 'STFU_RGB_565 4' project/android-aot/native_window_blit.c
+grep -q 'frame_pixels_presented' project/android-aot/native_window_blit.c
 grep -q 'looper_heartbeat' project/android-aot/native_activity_shell.c
 
 
@@ -81,10 +87,10 @@ p=Path('project/android-aot/android-app/app/build.gradle')
 s=p.read_text()
 assert "versionCode 1" in s
 assert "applicationId 'org.stfu.nativeport'" in s
-s=s.replace('versionCode 1','versionCode 8').replace('0.0.35-experimental','0.0.48-live-diagnostics-aaudio').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage48'")
+s=s.replace('versionCode 1','versionCode 9').replace('0.0.35-experimental','0.0.49-rgb565-render-fix').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage49'")
 p.write_text(s)
 p=Path('project/android-aot/android-app/app/src/main/AndroidManifest.xml')
-s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage48 Live Debug + Audio')
+s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage49 RGB565 Debug + Audio')
 p.write_text(s)
 PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
@@ -104,5 +110,5 @@ readelf -h "$RUNNER_TEMP/stfu-packaged.so" | grep -q -E 'Machine:.*AArch64'
 "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$STFU_PROTECTED_DIR/apk-signing.txt"
 grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$STFU_PROTECTED_DIR/apk-signing.txt"
 sha256sum "$apk" > "$STFU_PROTECTED_DIR/sha256-apk.txt"
-install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage48_Live_Debug_Experimental_AAudio_ARM64.apk"
+install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage49_RGB565_Render_AAudio_ARM64.apk"
 echo success > "$STFU_PROTECTED_DIR/build-result.txt"
