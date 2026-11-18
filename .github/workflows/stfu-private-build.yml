@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 120
     env:
       STFU_PRIVATE_DIR: ${{ github.workspace }}/private
-      STFU_PROTECTED_DIR: ${{ runner.temp }}/stfu-protected
+      STFU_PROTECTED_DIR: ${{ github.workspace }}/.stfu-protected
     steps:
       - name: Check private source access has been provisioned
         shell: bash
