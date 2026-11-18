@@ -101,6 +101,21 @@ done
 for file in GameActivity.java SetupActivity.java LaunchPreparation.java; do
   install -m 0644 "stfu-native/stage48-debug/$file" "$app/src/main/java/org/stfu/nativeport/$file"
 done
+# Stage54 proven gameplay-startup repair. Original STTNG.INI Path=C:\\STTNG\\,
+# but earlier import staged all files at C:\\ root. Original title ->
+# sosDIGIInitDriver resource error reproduced with flat install, but disappears
+# with true C:\\STTNG directory and silent settings on authentic media host.
+layout=stfu-native/stage54-dos-layout
+for name in DosLayoutPreparation.java LaunchPreparation.java DosLayoutPreparationHostTest.java; do
+  test -s "$layout/$name"
+done
+mkdir -p "$RUNNER_TEMP/stfu54-classes"
+javac -d "$RUNNER_TEMP/stfu54-classes" "$layout/DosLayoutPreparation.java" "$layout/LaunchPreparation.java" "$layout/DosLayoutPreparationHostTest.java"
+java -cp "$RUNNER_TEMP/stfu54-classes" org.stfu.nativeport.DosLayoutPreparationHostTest > "$STFU_PROTECTED_DIR/stage54-dos-layout-host-test.txt"
+grep -q STAGE54_DOS_LAYOUT_HOST_TEST_PASS "$STFU_PROTECTED_DIR/stage54-dos-layout-host-test.txt"
+install -m 0644 "$layout/DosLayoutPreparation.java" "$app/src/main/java/org/stfu/nativeport/DosLayoutPreparation.java"
+install -m 0644 "$layout/LaunchPreparation.java" "$app/src/main/java/org/stfu/nativeport/LaunchPreparation.java"
+grep -q 'DosLayoutPreparation.prepare(root)' "$app/src/main/java/org/stfu/nativeport/LaunchPreparation.java"
 test -s "$control/GameActivity.java"
 install -m 0644 "$control/GameActivity.java" "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
 grep -q 'nativeControl' "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
