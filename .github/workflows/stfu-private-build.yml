@@ -1,0 +1,105 @@
+name: STFU protected ARM64 NDK build
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stfu-private-build.yml'
+      - 'ci/build_private.sh'
+      - 'ci/age_artifact_key.pub'
+      - 'ci/build-request.txt'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: stfu-protected-native-build
+  cancel-in-progress: false
+jobs:
+  protected-native-build:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      STFU_PRIVATE_DIR: ${{ github.workspace }}/private
+      STFU_PROTECTED_DIR: ${{ runner.temp }}/stfu-protected
+    steps:
+      - name: Check private source access has been provisioned
+        shell: bash
+        env:
+          PRIVATE_TOKEN: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+        run: |
+          if [[ -z "$PRIVATE_TOKEN" ]]; then
+            echo 'SETUP_REQUIRED: Add a fine-grained, contents-read-only token as STFU_PRIVATE_READ_TOKEN in Actions secrets. No private source was accessed.'
+            exit 2
+          fi
+      - name: Checkout trusted public build harness
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout exact private development branch
+        uses: actions/checkout@v4
+        with:
+          repository: kairushinjuu/2004s
+          ref: stfu-stage42-private-media-test
+          token: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+          path: private
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: 'false'
+      - name: Install official Android SDK and native build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'ndk;27.2.12479018' 'platforms;android-35' 'build-tools;35.0.0' > "$RUNNER_TEMP/android-sdk-install.log" 2>&1 || { echo 'SDK install failed (diagnostic log will be encrypted)'; exit 1; }
+          sudo apt-get update -qq > "$RUNNER_TEMP/age-setup.log" 2>&1
+          sudo apt-get install -y -qq age > "$RUNNER_TEMP/age-setup-install.log" 2>&1
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Strict official NDK compilation and verified APK packaging
+        id: build
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p "$STFU_PROTECTED_DIR"
+          bash ci/build_private.sh > "$STFU_PROTECTED_DIR/private-compiler-output.log" 2>&1
+          rc=$?
+          printf '%s\n' "$rc" > "$STFU_PROTECTED_DIR/exit-code.txt"
+          if [[ $rc -ne 0 ]]; then echo 'Native build or verification failed. Detailed compiler output will be encrypted, not printed publicly.'; fi
+          exit "$rc"
+      - name: Encrypt all build output before making any artifact available
+        if: always() && steps.build.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$STFU_PROTECTED_DIR"
+          for f in android-sdk-install.log age-setup.log age-setup-install.log; do
+            if [[ -f "$RUNNER_TEMP/$f" ]]; then cp "$RUNNER_TEMP/$f" "$STFU_PROTECTED_DIR/$f"; fi
+          done
+          if [[ -z "$(find "$STFU_PROTECTED_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+            printf '%s\n' 'No build output; see job status' > "$STFU_PROTECTED_DIR/summary.txt"
+          fi
+          if ! command -v age >/dev/null 2>&1; then
+            sudo apt-get update -qq >/dev/null 2>&1
+            sudo apt-get install -y -qq age >/dev/null 2>&1
+          fi
+          tar -czf "$RUNNER_TEMP/stfu-sensitive-output.tar.gz" -C "$STFU_PROTECTED_DIR" .
+          age -R ci/age_artifact_key.pub -o "$GITHUB_WORKSPACE/stfu-stage43-protected.age" "$RUNNER_TEMP/stfu-sensitive-output.tar.gz"
+          test -s "$GITHUB_WORKSPACE/stfu-stage43-protected.age"
+          shred -u "$RUNNER_TEMP/stfu-sensitive-output.tar.gz" 2>/dev/null || rm -f "$RUNNER_TEMP/stfu-sensitive-output.tar.gz"
+          rm -rf "$STFU_PRIVATE_DIR" "$STFU_PROTECTED_DIR"
+          echo 'Encrypted private diagnostics/APK created; never publish unencrypted content.'
+      - name: Upload ONLY encrypted binary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stfu-stage43-encrypted-build
+          path: stfu-stage43-protected.age
+          retention-days: 7
+          if-no-files-found: warn
