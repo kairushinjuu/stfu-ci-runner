@@ -20,6 +20,11 @@ for file in stfu_diag.h native_window_blit.c native_activity_shell.c android_gam
   install -m 0644 "$overlay/$file" "project/android-aot/$file"
 done
 grep -q 'stfu_diag_event' project/android-aot/native_window_blit.c
+# Stage48: heartbeat in the native looper, separate real-time Android Dialog.
+test -s stfu-native/stage48-debug/native_activity_shell.c
+install -m 0644 stfu-native/stage48-debug/native_activity_shell.c project/android-aot/native_activity_shell.c
+grep -q 'looper_heartbeat' project/android-aot/native_activity_shell.c
+
 
 grep -q 'STFU_ANDROID_GUEST_PRESENT_ATTEMPT' project/android-aot/headless_smoke_native.c
 grep -q 'video_present(0)' project/android-aot/headless_smoke_native.c
@@ -32,7 +37,13 @@ new='"$TOOL/llvm-nm" -D "$OUT/libstfu.so" > "$OUT/exported-symbols.txt"\ngrep -q
 assert s.count(old)==1, 'Refusing unknown strict build script format'
 p.write_text(s.replace(old,new))
 PY
+# Experimental SOS software mixer and Android AAudio. Silent mode remains default.
+# Fail closed if recovered stubs or strict NDK script do not match expected source.
+STFU_STAGE47_EXPERIMENTAL_AUDIO=I_UNDERSTAND_EXPERIMENTAL bash stfu-native/stage47-audio-research/enable_aaudio_experiment.sh
 bash -n project/android-aot/build_android_strict.sh
+grep -q -- '-laaudio' project/android-aot/build_android_strict.sh
+grep -q -- 'native_sound_aaudio' project/android-aot/build_android_strict.sh
+
 grep -q -- '--no-undefined' project/android-aot/build_android_strict.sh
 export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
 test -x "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
@@ -58,9 +69,11 @@ for name in SetupActivity.java GameActivity.java LaunchPreparation.java; do
   cp "stfu-native/stage41-runtime/$name" "$app/src/main/java/org/stfu/nativeport/$name"
 done
 # Stage46 debug overlay/export added to both NativeActivity and SetupActivity.
-for file in GameActivity.java SetupActivity.java; do
-  install -m 0644 "$overlay/$file" "$app/src/main/java/org/stfu/nativeport/$file"
+for file in GameActivity.java SetupActivity.java LaunchPreparation.java; do
+  install -m 0644 "stfu-native/stage48-debug/$file" "$app/src/main/java/org/stfu/nativeport/$file"
 done
+grep -q 'new Dialog(this)' "$app/src/main/java/org/stfu/nativeport/GameActivity.java"
+grep -q 'prepareExperimentalAudio' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
 install -m 0644 "$so" "$app/src/main/jniLibs/arm64-v8a/libstfu.so"
 python3 - <<'PY'
 from pathlib import Path
@@ -68,17 +81,17 @@ p=Path('project/android-aot/android-app/app/build.gradle')
 s=p.read_text()
 assert "versionCode 1" in s
 assert "applicationId 'org.stfu.nativeport'" in s
-s=s.replace('versionCode 1','versionCode 7').replace('0.0.35-experimental','0.0.46-debug-overlay').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage46'")
+s=s.replace('versionCode 1','versionCode 8').replace('0.0.35-experimental','0.0.48-live-diagnostics-aaudio').replace("applicationId 'org.stfu.nativeport'","applicationId 'org.stfu.nativeport.renderstage48'")
 p.write_text(s)
 p=Path('project/android-aot/android-app/app/src/main/AndroidManifest.xml')
-s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage46 Native Debug')
+s=p.read_text().replace('android:name=".SetupActivity"','android:name="org.stfu.nativeport.SetupActivity"').replace('android:name=".GameActivity"','android:name="org.stfu.nativeport.GameActivity"').replace('STFU Native (experimental)','STFU Stage48 Live Debug + Audio')
 p.write_text(s)
 PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
 grep -q 'importPackages' "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java"
 mkdir -p "$RUNNER_TEMP/stfu-java"
 javac -d "$RUNNER_TEMP/stfu-java" "$app/src/main/java/org/stfu/nativeport/GameAssetImporter.java" "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java" stfu-native/stage40-three-packages/OriginalPackageHostTest.java
-javac -d "$RUNNER_TEMP/stfu-java" stfu-native/stage41-runtime/LaunchPreparation.java stfu-native/stage41-runtime/LaunchPreparationHostTest.java
+javac -d "$RUNNER_TEMP/stfu-java" stfu-native/stage48-debug/LaunchPreparation.java stfu-native/stage41-runtime/LaunchPreparationHostTest.java
 printf 'Audio=SBPRO\r\nSound=ON\r\nMusic=ON\r\nVoices=ON\r\n' > "$RUNNER_TEMP/STTNG.INI"
 java -cp "$RUNNER_TEMP/stfu-java" org.stfu.nativeport.LaunchPreparationHostTest "$RUNNER_TEMP/STTNG.INI" > "$STFU_PROTECTED_DIR/silent-host-test.txt"
 gradle --no-daemon -p project/android-aot/android-app :app:assembleDebug
@@ -91,5 +104,5 @@ readelf -h "$RUNNER_TEMP/stfu-packaged.so" | grep -q -E 'Machine:.*AArch64'
 "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$STFU_PROTECTED_DIR/apk-signing.txt"
 grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$STFU_PROTECTED_DIR/apk-signing.txt"
 sha256sum "$apk" > "$STFU_PROTECTED_DIR/sha256-apk.txt"
-install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage46_Debug_Overlay_ARM64.apk"
+install -m 0600 "$apk" "$STFU_PROTECTED_DIR/STFU_Stage48_Live_Debug_Experimental_AAudio_ARM64.apk"
 echo success > "$STFU_PROTECTED_DIR/build-result.txt"
