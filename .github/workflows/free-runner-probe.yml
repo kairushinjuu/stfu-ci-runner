@@ -1,0 +1,25 @@
+name: Public runner availability probe
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/free-runner-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check-free-hosted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Confirm free standard hosted runner starts
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Public standard GitHub runner execution verified"
+          uname -a
+          echo "GitHub runner OS: $RUNNER_OS"
+          echo "GitHub runner architecture: $RUNNER_ARCH"
+          printf 'Node: '; node --version
+          printf 'Java: '; java -version
+          echo "No private source, game media, secrets or artifacts used."
