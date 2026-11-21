@@ -1,0 +1,48 @@
+name: STFU Stage69 private importer Java synthetic regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stfu-stage69-importer-test.yml'
+permissions:
+  contents: read
+jobs:
+  java-importer:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify narrowly scoped private source access
+        env:
+          TOKEN: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+        run: |
+          test -n "$TOKEN" || { echo 'Missing read-only private source token'; exit 2; }
+      - uses: actions/checkout@v4
+        with:
+          repository: kairushinjuu/2004s
+          ref: stfu-stage42-private-media-test
+          token: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile Stage69 complete-resource importer using original media class contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=stfu-native/stage69-cd-resources
+          mkdir -p "$RUNNER_TEMP/stfu69-java"
+          javac -d "$RUNNER_TEMP/stfu69-java" \
+            "$SRC/IsoCdResourceExpansion.java" \
+            "$SRC/IsoCdExpansionSyntheticHostTest.java" \
+            "$SRC/OriginalSplitMediaImporter.java" \
+            stfu-native/stage39-original-media/GameAssetImporter.java \
+            stfu-native/stage55-ini-normalization/DosLayoutPreparation.java \
+            stfu-native/stage40-three-packages/OriginalPackageHostTest.java
+          java -cp "$RUNNER_TEMP/stfu69-java" org.stfu.nativeport.IsoCdExpansionSyntheticHostTest \
+            > "$RUNNER_TEMP/stfu69-test.txt"
+          grep -q STFU69_INVALID_ISO_FAIL_CLOSED_PASS "$RUNNER_TEMP/stfu69-test.txt"
+          echo 'PASS: Stage69 importer compiles and rejects malformed synthetic ISO without modifying game files.'
