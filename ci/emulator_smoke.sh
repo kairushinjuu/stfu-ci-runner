@@ -20,8 +20,18 @@ sdkmanager --install 'emulator' "system-images;android-${STFU_EMULATOR_API};goog
 EMU_BIN="$ANDROID_SDK_ROOT/emulator/emulator"
 [[ -x "$EMU_BIN" ]]
 AVD=stfu-stage57
-mkdir -p "$HOME/.android"
-echo no | avdmanager create avd -n "$AVD" -k "system-images;android-${STFU_EMULATOR_API};google_apis;x86_64" --force > "$OUT/avd-create.log" 2>&1
+# Use one explicit home for BOTH avdmanager and emulator. The previous CI
+# run created an AVD that the emulator could not discover (Unknown AVD name).
+export ANDROID_AVD_HOME="${RUNNER_TEMP:?}/stfu-stage57-avd-home"
+mkdir -p "$ANDROID_AVD_HOME"
+AVD_DIR="$ANDROID_AVD_HOME/$AVD.avd"
+printf 'no\\n' | avdmanager create avd -n "$AVD" --path "$AVD_DIR" -k "system-images;android-${STFU_EMULATOR_API};google_apis;x86_64" --force > "$OUT/avd-create.log" 2>&1
+avdmanager list avd -c > "$OUT/avd-list.txt" 2>&1
+test -f "$ANDROID_AVD_HOME/$AVD.ini" || { echo 'AVD_INI_NOT_CREATED'; exit 7; }
+test -f "$AVD_DIR/config.ini" || { echo 'AVD_CONFIG_NOT_CREATED'; exit 7; }
+grep -Fxq "$AVD" "$OUT/avd-list.txt" || { echo 'AVDMANAGER_CANNOT_DISCOVER_AVD'; exit 7; }
+"$EMU_BIN" -list-avds > "$OUT/emulator-avd-list.txt" 2>&1
+grep -Fxq "$AVD" "$OUT/emulator-avd-list.txt" || { echo 'EMULATOR_CANNOT_DISCOVER_AVD'; exit 7; }
 # Disable KVM only where truly absent; CPU fallback is slow and may time out.
 ACCEL=off
 if [[ -c /dev/kvm ]]; then
