@@ -60,6 +60,21 @@ gcc -std=c11 -Wall -Wextra -Werror -O1 -fsanitize=address,undefined -g \
 UBSAN_OPTIONS=halt_on_error=1 ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
   "$RUNNER_TEMP/stfu-stage57-audio-host" > "$STFU_PROTECTED_DIR/stage57-audio-host-test.txt"
 grep -q STAGE57_AAUDIO_PCM_MIXER_PASS "$STFU_PROTECTED_DIR/stage57-audio-host-test.txt"
+# Stage58: virtual Sound Blaster DSP foundation tested in isolation. The
+# original game's HMI far-call, DMA and IRQ paths remain fail-closed until
+# source-fingerprinted translation reaches a genuine playable audio pipeline.
+dsp=stfu-native/stage58-soundblaster-dsp
+test -s "$dsp/stfu_sb_dsp.c"
+test -s "$dsp/stfu_sb_dsp.h"
+test -s "$dsp/stfu_sb_dsp_test.c"
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -I"$dsp" "$dsp/stfu_sb_dsp.c" "$dsp/stfu_sb_dsp_test.c" \
+  -o "$RUNNER_TEMP/stfu-stage58-sb-dsp-test"
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage58-sb-dsp-test" > "$STFU_PROTECTED_DIR/stage58-sb-dsp-host-test.txt"
+grep -q STAGE58_SB_DSP_COMMAND_MODEL_PASS "$STFU_PROTECTED_DIR/stage58-sb-dsp-host-test.txt"
 # Stage52 private fatal-reason capture (unchanged termination semantics).
 # Records the actual translated guest runtime error in the existing exported
 # diagnostics log. Keep the proven Stage49 RGB565 renderer byte-identical.
