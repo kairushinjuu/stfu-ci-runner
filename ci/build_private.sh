@@ -12,6 +12,29 @@ cat stfu-native/source-chunks/part*.bin > "$RUNNER_TEMP/stfu-private-source.zip"
 printf '%s  %s\n' 'dac686aed30110b0012a4422b2f4a0a79528694e00fd9edfd8ee2c87f257f6ac' "$RUNNER_TEMP/stfu-private-source.zip" | sha256sum -c -
 unzip -q "$RUNNER_TEMP/stfu-private-source.zip" -d .
 test "$(find project/src/gen/sttng -maxdepth 1 -type f -name 'gen_*.c' | wc -l)" -eq 108
+# Stage61: make corrected ENTER translation effective in the recovered,
+# still-unregenerated 108 game-code translation units. This is an exact,
+# fail-closed transform, not a blanket trap bypass. Keep source/PC logs
+# strictly inside encrypted private output.
+enter=stfu-native/stage61-generated-enter
+python3 "$enter/test_generated_enter.py" > "$STFU_PROTECTED_DIR/stage61-enter-test.txt" 2>&1
+python3 "$enter/patch_generated_enter.py" project/src/gen/sttng --expected 15 > "$STFU_PROTECTED_DIR/stage61-enter-patch.txt"
+python3 "$enter/patch_generated_enter.py" project/src/gen/sttng --expected 0 >> "$STFU_PROTECTED_DIR/stage61-enter-patch.txt"
+test "$(grep -rl 'STFU61_ENTER_SEMANTICS' project/src/gen/sttng/gen_*.c | wc -l)" -eq 13
+for unit in $(grep -rl 'STFU61_ENTER_SEMANTICS' project/src/gen/sttng/gen_*.c); do
+    gcc -std=gnu11 -w -fsyntax-only -Iproject/src/rt "$unit" >> "$STFU_PROTECTED_DIR/stage61-enter-compile.txt" 2>&1
+done
+python3 - <<'PY'
+from pathlib import Path
+from sys import path
+path.insert(0,'stfu-native/stage60-translation-coverage')
+import translation_coverage
+report=translation_coverage.scan(Path('project/src/gen/sttng'))
+assert report['counts']['unimplemented']==200,report['counts']['unimplemented']
+assert report['counts']['rt_bad_code']==91,report['counts']['rt_bad_code']
+print('STAGE61_PATCHED_GENERATED_C_COVERAGE_PASS')
+PY
+
 cp stfu-native/stage43-render/headless_smoke_native.c project/android-aot/headless_smoke_native.c
 # Stage46 diagnostics attach to REAL native window/guest execution paths.
 overlay=stfu-native/stage46-debug
