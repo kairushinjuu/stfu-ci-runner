@@ -1,0 +1,38 @@
+name: STFU synthetic dynamic x86 execution regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stfu-unicorn-dynamic-test.yml'
+permissions:
+  contents: read
+jobs:
+  dynamic-x86:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify private read permission
+        env:
+          PRIVATE_TOKEN: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+        run: |
+          test -n "$PRIVATE_TOKEN" || { echo 'Missing private source read-only access'; exit 2; }
+      - uses: actions/checkout@v4
+        with:
+          repository: kairushinjuu/2004s
+          ref: stfu-stage42-private-media-test
+          token: ${{ secrets.STFU_PRIVATE_READ_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Install packaged Unicorn x86 interpreter and compiler
+        run: |
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -y -qq libunicorn-dev gcc >/dev/null
+      - name: Run bound synthetic guest self-modifying x86 executable test
+        shell: bash
+        run: |
+          bash stfu-native/stage67-unicorn-dynamic/run_unicorn_host_test.sh
+      - name: Summary
+        if: success()
+        run: echo 'Synthetic 32-bit x86 dynamic execution test passed; original game not verified.'
