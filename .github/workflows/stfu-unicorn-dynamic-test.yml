@@ -35,4 +35,4 @@ jobs:
           bash stfu-native/stage67-unicorn-dynamic/run_unicorn_host_test.sh
       - name: Summary
         if: success()
-        run: echo 'Synthetic x86 self-modifying execution and GDT/FS selector tests passed; original game not verified.'
+        run: echo 'Synthetic x86 dynamic execution, GDT and original-style LDT selectors passed; original game not verified.'
