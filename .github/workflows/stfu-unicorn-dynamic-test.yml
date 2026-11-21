@@ -33,6 +33,24 @@ jobs:
         shell: bash
         run: |
           bash stfu-native/stage67-unicorn-dynamic/run_unicorn_host_test.sh
+      - name: Package public Ubuntu Unicorn host library for private local testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/stfu-unicorn-hostkit"
+          mkdir -p "$d/lib" "$d/include" "$d/LICENSE"
+          cp -L /usr/lib/x86_64-linux-gnu/libunicorn.so.2 "$d/lib/libunicorn.so.2"
+          cp -r /usr/include/unicorn "$d/include/unicorn"
+          cp /usr/share/doc/libunicorn2t64/copyright "$d/LICENSE/ubuntu-unicorn-copyright"
+          (cd "$d"; sha256sum lib/libunicorn.so.2 > SHA256SUMS)
+          tar -czf "$RUNNER_TEMP/stfu-unicorn-hostkit.tar.gz" -C "$d" .
+          test -s "$RUNNER_TEMP/stfu-unicorn-hostkit.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stfu-stage67-public-unicorn-hostkit
+          path: ${{ runner.temp }}/stfu-unicorn-hostkit.tar.gz
+          retention-days: 7
+          if-no-files-found: error
       - name: Summary
         if: success()
         run: echo 'Synthetic x86 dynamic execution, GDT and original-style LDT selectors passed; original game not verified.'
