@@ -75,6 +75,21 @@ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
   UBSAN_OPTIONS=halt_on_error=1 \
   "$RUNNER_TEMP/stfu-stage58-sb-dsp-test" > "$STFU_PROTECTED_DIR/stage58-sb-dsp-host-test.txt"
 grep -q STAGE58_SB_DSP_COMMAND_MODEL_PASS "$STFU_PROTECTED_DIR/stage58-sb-dsp-host-test.txt"
+# Also compile the source-fingerprinted original HMI API bridge against the
+# virtual DSP and run the existing HMI ID8 compatibility test. This does NOT
+# activate research-only ID0/2/3/4 in the release shared object.
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror \
+  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -I"$dsp" -Iproject/android-aot -Iproject/src/rt \
+  "$dsp/hmi_driver_aot_virtual.c" "$dsp/stfu_sb_dsp.c" \
+  project/android-aot/guest_memory_posix.c \
+  project/android-aot/hmi_driver_aot_test.c \
+  -lm -o "$RUNNER_TEMP/stfu-stage58-hmi-bridge-test"
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage58-hmi-bridge-test" > "$STFU_PROTECTED_DIR/stage58-hmi-bridge-test.txt"
+grep -q 'PASS: fingerprinted static HMI ID8' "$STFU_PROTECTED_DIR/stage58-hmi-bridge-test.txt"
+
 # Stage52 private fatal-reason capture (unchanged termination semantics).
 # Records the actual translated guest runtime error in the existing exported
 # diagnostics log. Keep the proven Stage49 RGB565 renderer byte-identical.
