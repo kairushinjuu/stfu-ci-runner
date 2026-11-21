@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/stfu-private-build.yml'
       - 'ci/build_private.sh'
+      - 'ci/emulator_smoke.sh'
       - 'ci/age_artifact_key.pub'
       - 'ci/build-request.txt'
   workflow_dispatch:
@@ -73,6 +74,21 @@ jobs:
           printf '%s\n' "$rc" > "$STFU_PROTECTED_DIR/exit-code.txt"
           if [[ $rc -ne 0 ]]; then echo 'Native build or verification failed. Detailed compiler output will be encrypted, not printed publicly.'; fi
           exit "$rc"
+      - name: Android 35 ARM64-native-bridge emulator compatibility smoke (private logs)
+        if: steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p "$STFU_PROTECTED_DIR/emulator"
+          bash ci/emulator_smoke.sh > "$STFU_PROTECTED_DIR/emulator/runner-output.txt" 2>&1
+          rc=$?
+          printf '%s\n' "$rc" > "$STFU_PROTECTED_DIR/emulator/exit-code.txt"
+          if [[ "$rc" -eq 0 ]]; then
+            echo 'Emulator APK installation and launcher smoke passed; gameplay requires protected original game assets.'
+          else
+            echo 'Emulator smoke could not establish supported ARM64 app launch; details encrypted.'
+          fi
+          exit 0
       - name: Encrypt all build output before making any artifact available
         if: always() && steps.build.outcome != 'skipped'
         shell: bash
