@@ -46,3 +46,12 @@ jobs:
             > "$RUNNER_TEMP/stfu69-test.txt"
           grep -q STFU69_INVALID_ISO_FAIL_CLOSED_PASS "$RUNNER_TEMP/stfu69-test.txt"
           echo 'PASS: Stage69 importer compiles and rejects malformed synthetic ISO without modifying game files.'
+
+      - name: Verify safe split-ZIP installer transport using synthetic bytes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q stfu-native/stage78-split-installer
+          python3 stfu-native/stage78-split-installer/test_recover_split_installer.py > "$RUNNER_TEMP/stfu78-test.txt" 2>&1
+          grep -q STFU_STAGE78_SPLIT_INSTALLER_HOST_PASS "$RUNNER_TEMP/stfu78-test.txt"
+          echo 'PASS: split-ZIP read, CRC, tamper, traversal, missing-volume, atomic extraction'
