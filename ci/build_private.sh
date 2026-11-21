@@ -34,6 +34,30 @@ assert report['counts']['unimplemented']==200,report['counts']['unimplemented']
 assert report['counts']['rt_bad_code']==91,report['counts']['rt_bad_code']
 print('STAGE61_PATCHED_GENERATED_C_COVERAGE_PASS')
 PY
+# Stage65: decimal-adjust x86 semantics. Explicitly patch the recovered
+# source recompiler, then its verified stale generated C units. Do not
+# hide any other unimplemented instruction or bad-code site.
+bcd=stfu-native/stage65-bcd-translation
+python3 "$bcd/patch_bcd_recompiler.py" project/tools/recomp.py > "$STFU_PROTECTED_DIR/stage65-recompiler-patch.txt"
+python3 "$bcd/test_bcd_emissions.py" project/tools/recomp.py > "$STFU_PROTECTED_DIR/stage65-bcd-exhaustive.txt"
+grep -q STFU65_BCD_EXHAUSTIVE_PASS "$STFU_PROTECTED_DIR/stage65-bcd-exhaustive.txt"
+python3 "$bcd/patch_generated_bcd.py" project/src/gen/sttng project/tools/recomp.py --expected 25 > "$STFU_PROTECTED_DIR/stage65-generated-patch.txt"
+python3 "$bcd/patch_generated_bcd.py" project/src/gen/sttng project/tools/recomp.py --expected 0 >> "$STFU_PROTECTED_DIR/stage65-generated-patch.txt"
+test "$(grep -rl 'STFU65_BCD' project/src/gen/sttng/gen_*.c | wc -l)" -eq 16
+for unit in $(grep -rl 'STFU65_BCD' project/src/gen/sttng/gen_*.c); do
+  gcc -std=gnu11 -w -fsyntax-only -Iproject/src/rt "$unit" >> "$STFU_PROTECTED_DIR/stage65-bcd-compile.txt" 2>&1
+done
+python3 - <<'PY'
+from pathlib import Path
+from sys import path
+path.insert(0,'stfu-native/stage60-translation-coverage')
+import translation_coverage
+report=translation_coverage.scan(Path('project/src/gen/sttng'))
+assert report['counts']['unimplemented']==175,report['counts']['unimplemented']
+assert report['counts']['rt_bad_code']==91,report['counts']['rt_bad_code']
+print('STAGE65_BCD_COVERAGE_175_PASS')
+PY
+
 
 cp stfu-native/stage43-render/headless_smoke_native.c project/android-aot/headless_smoke_native.c
 # Stage46 diagnostics attach to REAL native window/guest execution paths.
