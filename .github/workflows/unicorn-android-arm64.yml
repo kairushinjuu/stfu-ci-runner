@@ -1,0 +1,62 @@
+name: STFU public Unicorn Android ARM64 cross-build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/unicorn-android-arm64.yml'
+permissions:
+  contents: read
+jobs:
+  unicorn-arm64:
+    if: github.repository == 'kairushinjuu/stfu-ci-runner'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out public Unicorn Engine fixed release
+        uses: actions/checkout@v4
+        with:
+          repository: unicorn-engine/unicorn
+          ref: 8028ec436f2d9376525352dd38ed9ed6b9f6be10
+          path: unicorn-public
+          submodules: recursive
+          persist-credentials: false
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: 'false'
+      - name: Install official Android NDK and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'ndk;27.2.12479018' 'platforms;android-35' >/dev/null
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -y -qq ninja-build cmake >/dev/null
+      - name: Compile official x86 guest engine into Android ARM64 library
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
+          cmake -S unicorn-public -B build-android-arm64 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+            -DUNICORN_ARCH=x86
+          cmake --build build-android-arm64 --parallel 3
+          mkdir -p packaged/lib packaged/include packaged/license
+          find build-android-arm64 -name 'libunicorn.so*' -type f -exec cp -L {} packaged/lib/ \;
+          test -s packaged/lib/libunicorn.so
+          cp -r unicorn-public/include/unicorn packaged/include/
+          cp unicorn-public/COPYING packaged/license/COPYING
+          "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h packaged/lib/libunicorn.so > packaged/ELF_HEADER.txt
+          grep -q 'AArch64' packaged/ELF_HEADER.txt
+          "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D packaged/lib/libunicorn.so | grep -q ' uc_emu_start$'
+          (cd packaged && sha256sum lib/* > SHA256SUMS)
+          echo 'UNICORN_ANDROID_ARM64_ELF_VERIFIED'
+      - name: Export only open-source Android ARM64 Unicorn library
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-unicorn-android-arm64-v2.1.4
+          path: packaged/
+          retention-days: 7
+          if-no-files-found: error
