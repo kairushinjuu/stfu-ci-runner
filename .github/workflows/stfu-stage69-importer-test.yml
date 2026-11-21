@@ -55,3 +55,11 @@ jobs:
           python3 stfu-native/stage78-split-installer/test_recover_split_installer.py > "$RUNNER_TEMP/stfu78-test.txt" 2>&1
           grep -q STFU_STAGE78_SPLIT_INSTALLER_HOST_PASS "$RUNNER_TEMP/stfu78-test.txt"
           echo 'PASS: split-ZIP read, CRC, tamper, traversal, missing-volume, atomic extraction'
+
+      - name: Verify Stage78 end-to-end recovery orchestration without original game data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 stfu-native/stage78-split-installer/test_recover_original_game.py > "$RUNNER_TEMP/stfu78-pipeline.txt" 2>&1
+          grep -q STFU_STAGE78_ATOMIC_ORIGINAL_GAME_PIPELINE_PASS "$RUNNER_TEMP/stfu78-pipeline.txt"
+          echo 'PASS: original ISO/OVL recovery orchestration uses fail-closed validation and atomic publish'
