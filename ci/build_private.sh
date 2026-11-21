@@ -226,7 +226,12 @@ mkdir -p "$app/src/main/res/values" "$app/src/main/jniLibs/arm64-v8a"
 cp stfu-native/stage38-ui/styles.xml "$app/src/main/res/values/styles.xml"
 cp stfu-native/stage38-ui/AndroidManifest.xml "$app/src/main/AndroidManifest.xml"
 cp stfu-native/stage39-original-media/GameAssetImporter.java "$app/src/main/java/org/stfu/nativeport/GameAssetImporter.java"
-cp stfu-native/stage40-three-packages/OriginalSplitMediaImporter.java "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java"
+# Stage69: reconstruct the full original ISO's 14,674 CD resources into
+# app-private C:\\STTNG before declaring imported media complete. ISO is
+# user-provided at runtime; no game bytes enter public GitHub or APK.
+cdexp=stfu-native/stage69-cd-resources
+install -m 0644 "$cdexp/OriginalSplitMediaImporter.java" "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java"
+install -m 0644 "$cdexp/IsoCdResourceExpansion.java" "$app/src/main/java/org/stfu/nativeport/IsoCdResourceExpansion.java"
 for name in SetupActivity.java GameActivity.java LaunchPreparation.java; do
   cp "stfu-native/stage41-runtime/$name" "$app/src/main/java/org/stfu/nativeport/$name"
 done
@@ -271,7 +276,15 @@ PY
 grep -q 'LaunchPreparation.prepareSilent' "$app/src/main/java/org/stfu/nativeport/SetupActivity.java"
 grep -q 'importPackages' "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java"
 mkdir -p "$RUNNER_TEMP/stfu-java"
-javac -d "$RUNNER_TEMP/stfu-java" "$app/src/main/java/org/stfu/nativeport/GameAssetImporter.java" "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java" stfu-native/stage40-three-packages/OriginalPackageHostTest.java
+javac -d "$RUNNER_TEMP/stfu-java" \
+  "$app/src/main/java/org/stfu/nativeport/GameAssetImporter.java" \
+  "$app/src/main/java/org/stfu/nativeport/OriginalSplitMediaImporter.java" \
+  "$app/src/main/java/org/stfu/nativeport/IsoCdResourceExpansion.java" \
+  "$app/src/main/java/org/stfu/nativeport/DosLayoutPreparation.java" \
+  "$cdexp/IsoCdExpansionSyntheticHostTest.java" \
+  stfu-native/stage40-three-packages/OriginalPackageHostTest.java
+java -cp "$RUNNER_TEMP/stfu-java" org.stfu.nativeport.IsoCdExpansionSyntheticHostTest > "$STFU_PROTECTED_DIR/stage69-cd-restoration-synthetic-test.txt"
+grep -q STFU69_INVALID_ISO_FAIL_CLOSED_PASS "$STFU_PROTECTED_DIR/stage69-cd-restoration-synthetic-test.txt"
 javac -d "$RUNNER_TEMP/stfu-java" stfu-native/stage48-debug/LaunchPreparation.java stfu-native/stage41-runtime/LaunchPreparationHostTest.java
 printf 'Audio=SBPRO\r\nSound=ON\r\nMusic=ON\r\nVoices=ON\r\n' > "$RUNNER_TEMP/STTNG.INI"
 java -cp "$RUNNER_TEMP/stfu-java" org.stfu.nativeport.LaunchPreparationHostTest "$RUNNER_TEMP/STTNG.INI" > "$STFU_PROTECTED_DIR/silent-host-test.txt"
