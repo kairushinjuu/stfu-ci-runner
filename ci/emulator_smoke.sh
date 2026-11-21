@@ -24,7 +24,12 @@ mkdir -p "$HOME/.android"
 echo no | avdmanager create avd -n "$AVD" -k "system-images;android-${STFU_EMULATOR_API};google_apis;x86_64" --force > "$OUT/avd-create.log" 2>&1
 # Disable KVM only where truly absent; CPU fallback is slow and may time out.
 ACCEL=off
-if [[ -r /dev/kvm && -w /dev/kvm ]]; then ACCEL=on; fi
+if [[ -c /dev/kvm ]]; then
+  if [[ ! -w /dev/kvm ]] && command -v sudo >/dev/null; then
+    sudo chmod a+rw /dev/kvm || true
+  fi
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then ACCEL=on; fi
+fi
 "$EMU_BIN" -avd "$AVD" -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel "$ACCEL" > "$OUT/emulator.log" 2>&1 &
 EMU_PID=$!
 cleanup(){ kill "$EMU_PID" 2>/dev/null || true; wait "$EMU_PID" 2>/dev/null || true; }
