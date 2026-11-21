@@ -202,6 +202,36 @@ done
 # Non-interfering host check: Java JNI -> native queue -> DOS input transitions.
 gcc -std=c11 -O2 -Iproject/android-aot "$control/android_input_bridge.c"   "$control/ndk_input_stubs.c" "$control/control_queue_host_test.c"   -o "$RUNNER_TEMP/stfu-stage51-input-host"
 "$RUNNER_TEMP/stfu-stage51-input-host" > "$STFU_PROTECTED_DIR/stage51-input-host-test.txt"
+# Stages72/73: source-only protected-mode vector round-trip and bounded
+# indirect dispatch telemetry. Both patches are in the authenticated private
+# checkout; public CI never contains original source/media or unencrypted logs.
+# Fail closed on any mismatch with the recovered Stage49 build source.
+for stage_patch in \
+  stfu-native/stage72-dpmi-vectors/STAGE72_DPMI_PM_VECTOR.patch \
+  stfu-native/stage73-title-trace/STAGE73_INDIRECT_EDGE_TRACE.patch; do
+  test -s "$stage_patch"
+  patch -d project -p1 --dry-run < "$stage_patch" > "$STFU_PROTECTED_DIR/stage72-73-patch-check.txt" 2>&1
+  patch -d project -p1 < "$stage_patch" >> "$STFU_PROTECTED_DIR/stage72-73-patch-check.txt" 2>&1
+done
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -fno-omit-frame-pointer -Iproject/android-aot -Iproject/src/rt \
+  project/android-aot/test_dpmi_portable.c \
+  project/android-aot/dpmi_portable.c \
+  project/android-aot/guest_memory_posix.c \
+  -o "$RUNNER_TEMP/stfu-stage72-dpmi-test"
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage72-dpmi-test" > "$STFU_PROTECTED_DIR/stage72-dpmi-test.txt"
+grep -q 'STFU72 DPMI 0204/0205' "$STFU_PROTECTED_DIR/stage72-dpmi-test.txt"
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -fno-omit-frame-pointer -Iproject/android-aot -Iproject/src/rt \
+  project/android-aot/guest_dispatch_test.c \
+  project/android-aot/guest_dispatch.c \
+  project/android-aot/guest_control.c \
+  project/android-aot/guest_memory_posix.c \
+  -o "$RUNNER_TEMP/stfu-stage73-dispatch-test"
+STFU_DISPATCH_TRACE=1 ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage73-dispatch-test" > "$STFU_PROTECTED_DIR/stage73-dispatch-test.txt"
+grep -q 'STFU73 PASS' "$STFU_PROTECTED_DIR/stage73-dispatch-test.txt"
 bash -n project/android-aot/build_android_strict.sh
 grep -q -- '-laaudio' project/android-aot/build_android_strict.sh
 grep -q -- 'native_sound_aaudio' project/android-aot/build_android_strict.sh
