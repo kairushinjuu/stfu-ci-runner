@@ -46,6 +46,20 @@ PY
 # Experimental SOS software mixer and Android AAudio. Silent mode remains default.
 # Fail closed if recovered stubs or strict NDK script do not match expected source.
 STFU_STAGE47_EXPERIMENTAL_AUDIO=I_UNDERSTAND_EXPERIMENTAL bash stfu-native/stage47-audio-research/enable_aaudio_experiment.sh
+# Stage57: correct undefined signed-left-shift of negative unsigned PCM bytes.
+# Source-faithful mathematical conversion, independent host ASan/UBSan and
+# nonzero PCM stereo regression. These are real mixer samples, not playback
+# from the game's original audio assets. Preserve original HMI fail-closed.
+audio=stfu-native/stage57-audio-emulator
+test -s "$audio/native_sound_aaudio.c"
+install -m 0644 "$audio/native_sound_aaudio.c" project/android-aot/native_sound_aaudio.c
+! grep -Fq '(p[0] - 128) << 8' project/android-aot/native_sound_aaudio.c
+gcc -std=c11 -Wall -Wextra -Werror -O1 -fsanitize=address,undefined -g \
+  -I"$audio/stubs" -Iproject/src/rt -Iproject/android-aot \
+  "$audio/audio_mixer_host_test.c" -lm -lpthread -o "$RUNNER_TEMP/stfu-stage57-audio-host"
+UBSAN_OPTIONS=halt_on_error=1 ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage57-audio-host" > "$STFU_PROTECTED_DIR/stage57-audio-host-test.txt"
+grep -q STAGE57_AAUDIO_PCM_MIXER_PASS "$STFU_PROTECTED_DIR/stage57-audio-host-test.txt"
 # Stage52 private fatal-reason capture (unchanged termination semantics).
 # Records the actual translated guest runtime error in the existing exported
 # diagnostics log. Keep the proven Stage49 RGB565 renderer byte-identical.
