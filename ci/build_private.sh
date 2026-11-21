@@ -57,6 +57,33 @@ assert report['counts']['unimplemented']==175,report['counts']['unimplemented']
 assert report['counts']['rt_bad_code']==91,report['counts']['rt_bad_code']
 print('STAGE65_BCD_COVERAGE_175_PASS')
 PY
+# Stage66: full x86 INSb/INSd and 16-bit PUSHAW semantics. Never suppress
+# I/O-port failures: unsupported hardware must remain fail-closed.
+io=stfu-native/stage66-io-translation
+python3 "$io/patch_io_recompiler.py" project/tools/recomp.py > "$STFU_PROTECTED_DIR/stage66-recompiler-patch.txt"
+python3 "$io/patch_generated_io.py" project/src/gen/sttng --expected 21 > "$STFU_PROTECTED_DIR/stage66-generated-patch.txt"
+python3 "$io/patch_generated_io.py" project/src/gen/sttng --expected 0 >> "$STFU_PROTECTED_DIR/stage66-generated-patch.txt"
+test "$(grep -rl 'STFU66_IO_SEMANTICS' project/src/gen/sttng/gen_*.c | wc -l)" -eq 12
+for unit in $(grep -rl 'STFU66_IO_SEMANTICS' project/src/gen/sttng/gen_*.c); do
+  gcc -std=gnu11 -w -fsyntax-only -Iproject/src/rt "$unit" >> "$STFU_PROTECTED_DIR/stage66-io-compile.txt" 2>&1
+done
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -fno-omit-frame-pointer "$io/test_io_emissions.c" -o "$RUNNER_TEMP/stfu-stage66-io-test"
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage66-io-test" > "$STFU_PROTECTED_DIR/stage66-io-test.txt"
+grep -q STFU66_INS_PUSHAW_BEHAVIOR_PASS "$STFU_PROTECTED_DIR/stage66-io-test.txt"
+python3 - <<'PY'
+from pathlib import Path
+from sys import path
+path.insert(0,'stfu-native/stage60-translation-coverage')
+import translation_coverage
+report=translation_coverage.scan(Path('project/src/gen/sttng'))
+assert report['counts']['unimplemented']==154,report['counts']['unimplemented']
+assert report['counts']['rt_bad_code']==91,report['counts']['rt_bad_code']
+print('STAGE66_TRANSLATION_COVERAGE_154_PASS')
+PY
+
 
 
 cp stfu-native/stage43-render/headless_smoke_native.c project/android-aot/headless_smoke_native.c
