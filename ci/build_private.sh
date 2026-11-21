@@ -90,6 +90,21 @@ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
   "$RUNNER_TEMP/stfu-stage58-hmi-bridge-test" > "$STFU_PROTECTED_DIR/stage58-hmi-bridge-test.txt"
 grep -q 'PASS: fingerprinted static HMI ID8' "$STFU_PROTECTED_DIR/stage58-hmi-bridge-test.txt"
 
+# Stage59: 8237 DMA physical-address and guest-byte transport regression.
+# Tests use synthetic guest memory only; this component is deliberately not
+# wired into released Android guest/HMI code until AUX mixer and IRQs work.
+dma=stfu-native/stage59-dma-pcm
+for file in stfu_dma8237.c stfu_dma8237.h stfu_dma8237_test.c; do
+  test -s "$dma/$file"
+done
+gcc -std=c11 -O1 -g -Wall -Wextra -Werror -fno-omit-frame-pointer \
+  -fsanitize=address,undefined -I"$dma" -I"$dsp" \
+  "$dma/stfu_dma8237.c" "$dma/stfu_dma8237_test.c" \
+  "$dsp/stfu_sb_dsp.c" -o "$RUNNER_TEMP/stfu-stage59-dma-host"
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1 \
+  "$RUNNER_TEMP/stfu-stage59-dma-host" > "$STFU_PROTECTED_DIR/stage59-dma-host-test.txt"
+grep -q STAGE59_8237_SYNTHETIC_GUEST_PCM_DMA_PASS "$STFU_PROTECTED_DIR/stage59-dma-host-test.txt"
 # Stage52 private fatal-reason capture (unchanged termination semantics).
 # Records the actual translated guest runtime error in the existing exported
 # diagnostics log. Keep the proven Stage49 RGB565 renderer byte-identical.
