@@ -63,3 +63,14 @@ jobs:
           python3 stfu-native/stage78-split-installer/test_recover_original_game.py > "$RUNNER_TEMP/stfu78-pipeline.txt" 2>&1
           grep -q STFU_STAGE78_ATOMIC_ORIGINAL_GAME_PIPELINE_PASS "$RUNNER_TEMP/stfu78-pipeline.txt"
           echo 'PASS: original ISO/OVL recovery orchestration uses fail-closed validation and atomic publish'
+
+      - name: Private source security gate (zero secret/media output)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python3 stfu-native/stage80-security/scan_current_tree.py > "$RUNNER_TEMP/stfu-security.txt" 2>&1; then
+            echo 'Private source security audit failed; findings withheld from public logs'
+            exit 1
+          fi
+          grep -q STFU_STAGE80_CURRENT_TREE_AUDIT_PASS "$RUNNER_TEMP/stfu-security.txt"
+          echo 'PASS: private current-tree credential, original-asset filename, active workflow audit'
