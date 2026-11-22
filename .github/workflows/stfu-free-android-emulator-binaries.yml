@@ -1,0 +1,55 @@
+# Public SDK components only; NO private game assets, APKs, tokens or user logs.
+name: Public Android emulator binaries for offline reproduction
+on:
+  push:
+    paths:
+      - .github/workflows/stfu-free-android-emulator-binaries.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-android-emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Verify public-repository cost boundary
+        env:
+          VISIBILITY: ${{ github.event.repository.private }}
+        run: |
+          set -euo pipefail
+          if [ "$VISIBILITY" != 'false' ]; then
+            echo 'REFUSE: requires public repository'
+            exit 1
+          fi
+          echo 'Public repository; official SDK binaries only.'
+      - name: Download official Android SDK emulator and API30 image
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(command -v sdkmanager)"; fi
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install 'emulator' 'system-images;android-30;google_apis;x86_64' || test "${PIPESTATUS[1]}" -eq 0
+          test -x "$SDK_ROOT/emulator/emulator"
+          test -f "$SDK_ROOT/system-images/android-30/google_apis/x86_64/system.img"
+          mkdir -p "$RUNNER_TEMP/export"
+          tar -C "$SDK_ROOT" -czf "$RUNNER_TEMP/export/android-emulator-linux-x64.tar.gz" emulator
+          tar -C "$SDK_ROOT" -czf "$RUNNER_TEMP/export/android-11-googleapis-x86_64.tar.gz" system-images/android-30/google_apis/x86_64
+          (cd "$RUNNER_TEMP/export" && sha256sum *.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-linux-x64-official
+          path: ${{ runner.temp }}/export/android-emulator-linux-x64.tar.gz
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-11-googleapis-x86_64-official
+          path: ${{ runner.temp }}/export/android-11-googleapis-x86_64.tar.gz
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-component-sha256
+          path: ${{ runner.temp }}/export/SHA256SUMS
+          retention-days: 2
