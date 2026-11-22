@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   android-11-emulator-smoke:
     runs-on: ubuntu-24.04
@@ -118,6 +119,77 @@ jobs:
           "$ROOT/platform-tools/adb" logcat -d -v threadtime -s 'STFU_EMU_ARM64:I' 'AndroidRuntime:E' 'libc:F' > "$RUNNER_TEMP/emulator-results/arm64-logcat.txt"
           grep -q SYNTHETIC_ARM64_NATIVE_ACTIVITY_EXECUTED "$RUNNER_TEMP/emulator-results/arm64-logcat.txt"
           echo 'STFU_ARM64_TRANSLATION_AND_ACTIVITY_PASS' | tee "$RUNNER_TEMP/emulator-results/arm64-result.txt"
+      - name: Test official ARM64 Unicorn executing synthetic x86 code on Android
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ROOT="$ANDROID_SDK_ROOT"
+          DIR="$RUNNER_TEMP/unicorn-on-android"
+          mkdir -p "$DIR/lib/arm64-v8a" "$DIR/official"
+          gh run download 44873382869 --repo kairushinjuu/stfu-ci-runner --name public-unicorn-android-arm64-v2.1.4 --dir "$DIR/official"
+          test -s "$DIR/official/lib/libunicorn.so"
+          (cd "$DIR/official" && sha256sum -c SHA256SUMS)
+          cp "$DIR/official/lib/libunicorn.so" "$DIR/lib/arm64-v8a/libunicorn.so"
+          cat > "$DIR/unicorn_smoke.c" <<'EOF'
+          #include <android/native_activity.h>
+          #include <android/log.h>
+          #include <unicorn/unicorn.h>
+          #include <stdint.h>
+          void ANativeActivity_onCreate(ANativeActivity *activity, void *state, size_t size) {
+            (void)activity; (void)state; (void)size;
+            uc_engine *engine = 0;
+            uc_err err = uc_open(UC_ARCH_X86, UC_MODE_32, &engine);
+            if (err) goto fail;
+            err = uc_mem_map(engine, 0x1000, 0x1000, UC_PROT_ALL);
+            if (err) goto fail;
+            const uint8_t code[] = {0xb8,0x2a,0x00,0x00,0x00,0x90};
+            err = uc_mem_write(engine, 0x1000, code, sizeof(code));
+            if (err) goto fail;
+            err = uc_emu_start(engine, 0x1000, 0x1000 + sizeof(code), 0, 0);
+            if (err) goto fail;
+            uint32_t eax = 0;
+            err = uc_reg_read(engine, UC_X86_REG_EAX, &eax);
+            if (err || eax != 42) goto fail;
+            __android_log_print(ANDROID_LOG_INFO, "STFU_EMU_UNICORN",
+                "ARM64_UNICORN_X86_32_EXECUTION_PASS EAX=%u", (unsigned)eax);
+            uc_close(engine);
+            return;
+          fail:
+            __android_log_print(ANDROID_LOG_ERROR, "STFU_EMU_UNICORN",
+                "ARM64_UNICORN_X86_32_EXECUTION_FAIL error=%d", (int)err);
+            if (engine) uc_close(engine);
+          }
+          EOF
+          NDK_ROOT="$(find "$ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          HOST="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          "$HOST/aarch64-linux-android30-clang" -shared -fPIC -O2 -I "$DIR/official/include" "$DIR/unicorn_smoke.c" -L "$DIR/lib/arm64-v8a" -lunicorn -llog -o "$DIR/lib/arm64-v8a/libunicorn_smoke.so"
+          cat > "$DIR/AndroidManifest.xml" <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.stfu.synthetic.unicornsmoke">
+            <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30"/>
+            <application android:label="Synthetic Unicorn ARM64" android:hasCode="false" android:debuggable="true" android:extractNativeLibs="true">
+              <activity android:name="android.app.NativeActivity" android:exported="true">
+                <meta-data android:name="android.app.lib_name" android:value="unicorn_smoke"/>
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          BT="$(find "$ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BT/aapt2" link --manifest "$DIR/AndroidManifest.xml" -I "$ROOT/platforms/android-35/android.jar" -o "$DIR/unsigned.apk"
+          (cd "$DIR" && zip -q unsigned.apk lib/arm64-v8a/libunicorn_smoke.so lib/arm64-v8a/libunicorn.so)
+          "$BT/zipalign" -f 4 "$DIR/unsigned.apk" "$DIR/aligned.apk"
+          keytool -genkeypair -storetype PKCS12 -keystore "$DIR/ephemeral.p12" -storepass changeit -keypass changeit -alias ephemeral -keyalg RSA -keysize 2048 -validity 2 -dname 'CN=Public synthetic Unicorn test' >/dev/null 2>&1
+          "$BT/apksigner" sign --ks "$DIR/ephemeral.p12" --ks-key-alias ephemeral --ks-pass pass:changeit --key-pass pass:changeit --out "$DIR/smoke.apk" "$DIR/aligned.apk"
+          "$BT/apksigner" verify "$DIR/smoke.apk"
+          "$ROOT/platform-tools/adb" install -r "$DIR/smoke.apk" | tee "$RUNNER_TEMP/emulator-results/unicorn-install.txt"
+          "$ROOT/platform-tools/adb" logcat -c
+          "$ROOT/platform-tools/adb" shell am start -n 'org.stfu.synthetic.unicornsmoke/android.app.NativeActivity' | tee "$RUNNER_TEMP/emulator-results/unicorn-start.txt"
+          sleep 10
+          "$ROOT/platform-tools/adb" logcat -d -v threadtime -s 'STFU_EMU_UNICORN:V' 'AndroidRuntime:E' 'linker:E' 'libc:F' > "$RUNNER_TEMP/emulator-results/unicorn-logcat.txt"
+          grep -q 'ARM64_UNICORN_X86_32_EXECUTION_PASS EAX=42' "$RUNNER_TEMP/emulator-results/unicorn-logcat.txt"
+          echo STFU_ARM64_UNICORN_X86_EXECUTION_PASS | tee "$RUNNER_TEMP/emulator-results/unicorn-result.txt"
       - name: Upload public synthetic-only evidence
         if: always()
         uses: actions/upload-artifact@v4
