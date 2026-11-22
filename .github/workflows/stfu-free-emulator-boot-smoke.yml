@@ -36,7 +36,16 @@ jobs:
           set -euo pipefail
           ROOT="$ANDROID_SDK_ROOT"
           AVDM="$ROOT/cmdline-tools/latest/bin/avdmanager"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/android-home"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_USER_HOME=$ANDROID_USER_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           printf 'no\n' | "$AVDM" create avd -n stfu_api30_probe -k "system-images;android-30;google_apis;x86_64" -f
+          echo "AVD after creation:"
+          "$ROOT/emulator/emulator" -list-avds | tee "$RUNNER_TEMP/emulator-results/avd-list.txt"
+          find "$ANDROID_USER_HOME" -maxdepth 3 -type f -print | tee "$RUNNER_TEMP/emulator-results/avd-files.txt"
+          "$ROOT/emulator/emulator" -list-avds | grep -qx stfu_api30_probe || { echo "AVD creation did not register" >&2; exit 3; }
           ACCEL=off
           if test -c /dev/kvm; then
             sudo chmod 666 /dev/kvm
