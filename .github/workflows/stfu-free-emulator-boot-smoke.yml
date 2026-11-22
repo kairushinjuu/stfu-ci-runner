@@ -38,9 +38,12 @@ jobs:
           AVDM="$ROOT/cmdline-tools/latest/bin/avdmanager"
           printf 'no\n' | "$AVDM" create avd -n stfu_api30_probe -k "system-images;android-30;google_apis;x86_64" -f
           ACCEL=off
-          if test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm; then ACCEL=on; fi
+          if test -c /dev/kvm; then
+            sudo chmod 666 /dev/kvm
+            if test -r /dev/kvm && test -w /dev/kvm; then ACCEL=on; fi
+          fi
           echo "accel=$ACCEL" | tee "$RUNNER_TEMP/emulator-results/boot.txt"
-          "$ROOT/emulator/emulator" -avd stfu_api30_probe -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 -cores 2 -accel "$ACCEL" > "$RUNNER_TEMP/emulator-results/emulator-process.log" 2>&1 &
+          "$ROOT/emulator/emulator" -avd stfu_api30_probe -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 -cores 2 -accel "$ACCEL" > "$RUNNER_TEMP/emulator-results/emulator-process.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/emulator-results/emulator.pid"
           "$ROOT/platform-tools/adb" start-server
           ready=0
@@ -52,7 +55,11 @@ jobs:
           done
           echo "boot_completed=$ready" | tee -a "$RUNNER_TEMP/emulator-results/boot.txt"
           "$ROOT/platform-tools/adb" devices -l >> "$RUNNER_TEMP/emulator-results/boot.txt" 2>&1 || true
-          if [ "$ready" != 1 ]; then echo "Android emulator did not boot" >&2; exit 2; fi
+          if [ "$ready" != 1 ]; then
+            echo "Android emulator did not boot; recent emulator output follows" >&2
+            tail -100 "$RUNNER_TEMP/emulator-results/emulator-process.log" || true
+            exit 2
+          fi
           for prop in ro.build.version.sdk ro.product.cpu.abilist ro.dalvik.vm.native.bridge ro.product.cpu.abilist64 ro.product.cpu.abilist32; do
             echo "$prop=$("$ROOT/platform-tools/adb" shell getprop "$prop" | tr -d '\r')" | tee -a "$RUNNER_TEMP/emulator-results/boot.txt"
           done
