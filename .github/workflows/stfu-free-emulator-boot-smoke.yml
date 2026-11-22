@@ -1,0 +1,111 @@
+name: Public Android 11 boot and ARM64 native bridge smoke
+on:
+  push:
+    paths:
+      - '.github/workflows/stfu-free-emulator-boot-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-11-emulator-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Guard public-only execution
+        env:
+          REPO_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          test "$REPO_PRIVATE" = 'false'
+          echo "Public SDK and synthetic native-code testing only"
+      - name: Prepare official emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_SDK_ROOT=$ROOT" >> "$GITHUB_ENV"
+          SDKM="$ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKM"
+          "$SDKM" --sdk_root="$ROOT" --install "emulator" "platforms;android-35" "system-images;android-30;google_apis;x86_64"
+          mkdir -p "$RUNNER_TEMP/emulator-results"
+          echo "Architecture=$(uname -m)" | tee "$RUNNER_TEMP/emulator-results/host.txt"
+          echo "KVM=$(test -c /dev/kvm && echo available || echo unavailable)" | tee -a "$RUNNER_TEMP/emulator-results/host.txt"
+          ls -lah "$ROOT/ndk" >> "$RUNNER_TEMP/emulator-results/host.txt" 2>&1 || true
+      - name: Create and boot Android virtual device
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$ANDROID_SDK_ROOT"
+          AVDM="$ROOT/cmdline-tools/latest/bin/avdmanager"
+          printf 'no\n' | "$AVDM" create avd -n stfu_api30_probe -k "system-images;android-30;google_apis;x86_64" -f
+          ACCEL=off
+          if test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm; then ACCEL=on; fi
+          echo "accel=$ACCEL" | tee "$RUNNER_TEMP/emulator-results/boot.txt"
+          "$ROOT/emulator/emulator" -avd stfu_api30_probe -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 -cores 2 -accel "$ACCEL" > "$RUNNER_TEMP/emulator-results/emulator-process.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/emulator-results/emulator.pid"
+          "$ROOT/platform-tools/adb" start-server
+          ready=0
+          for i in $(seq 1 135); do
+            state=$("$ROOT/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+            if [ "$state" = 1 ]; then ready=1; break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/emulator-results/emulator.pid")" 2>/dev/null; then break; fi
+            sleep 3
+          done
+          echo "boot_completed=$ready" | tee -a "$RUNNER_TEMP/emulator-results/boot.txt"
+          "$ROOT/platform-tools/adb" devices -l >> "$RUNNER_TEMP/emulator-results/boot.txt" 2>&1 || true
+          if [ "$ready" != 1 ]; then echo "Android emulator did not boot" >&2; exit 2; fi
+          for prop in ro.build.version.sdk ro.product.cpu.abilist ro.dalvik.vm.native.bridge ro.product.cpu.abilist64 ro.product.cpu.abilist32; do
+            echo "$prop=$("$ROOT/platform-tools/adb" shell getprop "$prop" | tr -d '\r')" | tee -a "$RUNNER_TEMP/emulator-results/boot.txt"
+          done
+      - name: Build and launch synthetic arm64-v8a NativeActivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$ANDROID_SDK_ROOT"
+          NDK_ROOT="$(find "$ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -n "$NDK_ROOT"
+          HOST="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          test -x "$HOST/aarch64-linux-android30-clang"
+          DIR="$RUNNER_TEMP/native-smoke"
+          mkdir -p "$DIR/lib/arm64-v8a"
+          cat > "$DIR/native.c" <<'EOF'
+          #include <android/native_activity.h>
+          #include <android/log.h>
+          void ANativeActivity_onCreate(ANativeActivity *activity, void *state, size_t size) {
+            (void)activity; (void)state; (void)size;
+            __android_log_print(ANDROID_LOG_INFO, "STFU_EMU_ARM64", "SYNTHETIC_ARM64_NATIVE_ACTIVITY_EXECUTED");
+          }
+          EOF
+          "$HOST/aarch64-linux-android30-clang" -shared -fPIC -O2 "$DIR/native.c" -llog -o "$DIR/lib/arm64-v8a/libarm64_smoke.so"
+          cat > "$DIR/AndroidManifest.xml" <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.stfu.synthetic.emulatorsmoke">
+            <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30"/>
+            <application android:label="Synthetic ARM64 Test" android:hasCode="false" android:debuggable="true">
+              <activity android:name="android.app.NativeActivity" android:exported="true">
+                <meta-data android:name="android.app.lib_name" android:value="arm64_smoke"/>
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          BT="$(find "$ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -x "$BT/aapt2"
+          "$BT/aapt2" link --manifest "$DIR/AndroidManifest.xml" -I "$ROOT/platforms/android-35/android.jar" -o "$DIR/unsigned.apk"
+          (cd "$DIR" && zip -q unsigned.apk lib/arm64-v8a/libarm64_smoke.so)
+          "$BT/zipalign" -f 4 "$DIR/unsigned.apk" "$DIR/aligned.apk"
+          keytool -genkeypair -storetype PKCS12 -keystore "$DIR/ephemeral.p12" -storepass changeit -keypass changeit -alias ephemeral -keyalg RSA -keysize 2048 -validity 2 -dname 'CN=Public synthetic emulator smoke' >/dev/null 2>&1
+          "$BT/apksigner" sign --ks "$DIR/ephemeral.p12" --ks-key-alias ephemeral --ks-pass pass:changeit --key-pass pass:changeit --out "$DIR/smoke.apk" "$DIR/aligned.apk"
+          "$BT/apksigner" verify "$DIR/smoke.apk"
+          "$ROOT/platform-tools/adb" install -r "$DIR/smoke.apk" | tee "$RUNNER_TEMP/emulator-results/arm64-install.txt"
+          "$ROOT/platform-tools/adb" logcat -c
+          "$ROOT/platform-tools/adb" shell am start -n 'org.stfu.synthetic.emulatorsmoke/android.app.NativeActivity' | tee "$RUNNER_TEMP/emulator-results/arm64-start.txt"
+          sleep 8
+          "$ROOT/platform-tools/adb" logcat -d -v threadtime -s 'STFU_EMU_ARM64:I' 'AndroidRuntime:E' 'libc:F' > "$RUNNER_TEMP/emulator-results/arm64-logcat.txt"
+          grep -q SYNTHETIC_ARM64_NATIVE_ACTIVITY_EXECUTED "$RUNNER_TEMP/emulator-results/arm64-logcat.txt"
+          echo 'STFU_ARM64_TRANSLATION_AND_ACTIVITY_PASS' | tee "$RUNNER_TEMP/emulator-results/arm64-result.txt"
+      - name: Upload public synthetic-only evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-android11-arm64-emulator-boot-smoke-evidence
+          path: ${{ runner.temp }}/emulator-results/
+          retention-days: 7
