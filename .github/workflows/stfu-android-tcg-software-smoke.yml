@@ -18,6 +18,10 @@ jobs:
         run: |
           test "$PRIVATE" = false
           echo "Official public Android SDK packages and synthetic test only"
+      - name: Install emulator native runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libpulse0 libgl1 libnss3 libx11-6 libxcb1 libxcomposite1 libxcursor1 libxi6 libxtst6 libasound2t64
       - name: Install official emulator and Google APIs Android 11
         shell: bash
         run: |
