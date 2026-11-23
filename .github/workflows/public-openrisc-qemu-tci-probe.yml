@@ -50,6 +50,7 @@ jobs:
           "$OR1K_CC" -dumpmachine | tee -a "$RUNNER_TEMP/evidence/configure-summary.txt"
           echo "checking target GLib libraries" | tee -a "$RUNNER_TEMP/evidence/configure-summary.txt"
           find "$sysroot" -name 'libglib-2.0*' -o -name 'libpixman-1*' | head -30 | tee -a "$RUNNER_TEMP/evidence/configure-summary.txt"
+          set +e
           ./configure \
             --target-list=i386-softmmu \
             --cross-prefix="$prefix-" \
@@ -59,6 +60,7 @@ jobs:
             --disable-kvm \
             > "$RUNNER_TEMP/evidence/configure.log" 2>&1
           code=$?
+          set -e
           echo "configure_exit=$code" | tee -a "$RUNNER_TEMP/evidence/configure-summary.txt"
           tail -120 "$RUNNER_TEMP/evidence/configure.log"
           if [ "$code" -eq 0 ]; then
