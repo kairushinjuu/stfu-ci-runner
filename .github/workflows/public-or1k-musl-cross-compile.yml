@@ -1,0 +1,64 @@
+# Public synthetic OpenRISC compiler probe only; no proprietary STFU assets.
+name: Public OpenRISC Linux cross compiler smoke
+on:
+  push:
+    paths:
+      - .github/workflows/public-or1k-musl-cross-compile.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  or1k-musl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject private repositories
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: test "$PRIVATE" = false
+      - name: Download public OpenRISC GNU/Linux musl cross toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/stffrdhrn/or1k-toolchain-build/releases/download/or1k-16.1.0-20260704/or1k-none-linux-musl-16.1.0-20260704.tar.xz"
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/cross.tar.xz" "$url"
+          mkdir -p "$RUNNER_TEMP/cross"
+          tar -xf "$RUNNER_TEMP/cross.tar.xz" -C "$RUNNER_TEMP/cross"
+          echo "CROSS tree:"
+          find "$RUNNER_TEMP/cross" -maxdepth 4 -type f -name '*gcc' -print | head -25
+      - name: Compile real OpenRISC Linux ELF32 test executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc="$(find "$RUNNER_TEMP/cross" -type f -path '*/bin/*-gcc' | head -1)"
+          test -n "$cc" && test -x "$cc"
+          echo "Compiler: $cc"
+          "$cc" --version | head -1
+          printf '#include <stdio.h>\nint main(void){puts("STFU_OR1K_CROSS_GCC_PROCESS_OK");return 0;}\n' > "$RUNNER_TEMP/hello.c"
+          "$cc" -static -Os -s "$RUNNER_TEMP/hello.c" -o "$RUNNER_TEMP/hello_or1k"
+          file "$RUNNER_TEMP/hello_or1k"
+          readelf -h "$RUNNER_TEMP/hello_or1k" | head -28
+          sha256sum "$RUNNER_TEMP/hello_or1k"
+          mkdir -p generated
+          base64 -w0 "$RUNNER_TEMP/hello_or1k" > generated/openrisc-linux-musl-hello.elf.b64
+          sha256sum "$RUNNER_TEMP/hello_or1k" > generated/openrisc-linux-musl-hello.sha256
+          ls -lh generated/openrisc-linux-musl-hello.*
+      - name: Preserve public test binary for private runtime import
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/openrisc-linux-musl-hello.elf.b64 generated/openrisc-linux-musl-hello.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish public synthetic OpenRISC Linux cross-compiler smoke ELF"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-openrisc-elf32-toolchain-test
+          path: |
+            generated/openrisc-linux-musl-hello.*
+          retention-days: 7
