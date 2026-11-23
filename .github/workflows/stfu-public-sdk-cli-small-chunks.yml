@@ -1,0 +1,72 @@
+# Official public Android CLI + adb packages, no game data or private credentials.
+name: Public Android CLI plus ADB small-piece transport
+on:
+  push:
+    paths:
+      - .github/workflows/stfu-public-sdk-cli-small-chunks.yml
+permissions:
+  contents: read
+jobs:
+  sdk-cli-small-chunks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Refuse private repositories
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: test "$PRIVATE" = false
+      - name: Package official sdkmanager, avdmanager and adb
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --sdk_root="$SDK" 'platform-tools' || test "${PIPESTATUS[1]}" -eq 0
+          mkdir -p "$RUNNER_TEMP/sdk-parts"
+          tar -C "$SDK" -czf "$RUNNER_TEMP/sdk-parts/sdk-cli-adb.tar.gz" cmdline-tools/latest platform-tools
+          (cd "$RUNNER_TEMP/sdk-parts" && sha256sum sdk-cli-adb.tar.gz > manifest.sha256)
+          split -d -a 2 -b 48M "$RUNNER_TEMP/sdk-parts/sdk-cli-adb.tar.gz" "$RUNNER_TEMP/sdk-parts/sdk-cli-adb-"
+          rm "$RUNNER_TEMP/sdk-parts/sdk-cli-adb.tar.gz"
+          test "$(find "$RUNNER_TEMP/sdk-parts" -name 'sdk-cli-adb-*' | wc -l)" -le 6
+          ls -lh "$RUNNER_TEMP/sdk-parts"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-chunk-manifest
+          path: ${{ runner.temp }}/sdk-parts/manifest.sha256
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-00
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-00
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-01
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-01
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-02
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-02
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-03
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-03
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-04
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-04
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-cli-adb-48mb-05
+          path: ${{ runner.temp }}/sdk-parts/sdk-cli-adb-05
+          compression-level: 0
+          retention-days: 1
