@@ -35,63 +35,54 @@ jobs:
           path: ${{ runner.temp }}/sdk-parts/manifest.sha256
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '00')) != '' }}
         with:
           name: official-sdk-emulator-48mb-00
           path: ${{ runner.temp }}/sdk-parts/emulator-00
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '01')) != '' }}
         with:
           name: official-sdk-emulator-48mb-01
           path: ${{ runner.temp }}/sdk-parts/emulator-01
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '02')) != '' }}
         with:
           name: official-sdk-emulator-48mb-02
           path: ${{ runner.temp }}/sdk-parts/emulator-02
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '03')) != '' }}
         with:
           name: official-sdk-emulator-48mb-03
           path: ${{ runner.temp }}/sdk-parts/emulator-03
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '04')) != '' }}
         with:
           name: official-sdk-emulator-48mb-04
           path: ${{ runner.temp }}/sdk-parts/emulator-04
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '05')) != '' }}
         with:
           name: official-sdk-emulator-48mb-05
           path: ${{ runner.temp }}/sdk-parts/emulator-05
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '06')) != '' }}
         with:
           name: official-sdk-emulator-48mb-06
           path: ${{ runner.temp }}/sdk-parts/emulator-06
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '07')) != '' }}
         with:
           name: official-sdk-emulator-48mb-07
           path: ${{ runner.temp }}/sdk-parts/emulator-07
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '08')) != '' }}
         with:
           name: official-sdk-emulator-48mb-08
           path: ${{ runner.temp }}/sdk-parts/emulator-08
