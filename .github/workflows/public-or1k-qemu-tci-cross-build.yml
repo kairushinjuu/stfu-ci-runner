@@ -118,6 +118,14 @@ jobs:
           tar -xf "$RUNNER_TEMP/qemu.tar.xz" -C "$RUNNER_TEMP/src-qemu" --strip-components=1
           export PKG_CONFIG_PATH="$TARGET_SYSROOT/lib/pkgconfig"
           export PKG_CONFIG_LIBDIR="$TARGET_SYSROOT/lib/pkgconfig"
+          # QEMU expects a target-prefixed pkg-config binary; provide a shim
+          # using the target-only pkg-config search directories exported above.
+          cat > "$PREFIX"pkg-config <<'PKGSH'
+          #!/usr/bin/env bash
+          exec /usr/bin/pkg-config "$@"
+          PKGSH
+          chmod +x "$PREFIX"pkg-config
+          "$PREFIX"pkg-config --modversion glib-2.0 pixman-1
           cd "$RUNNER_TEMP/src-qemu"
           ./configure --cross-prefix="$PREFIX" --cpu=or1k --target-list=i386-softmmu --enable-tcg-interpreter \
             --disable-docs --disable-tools --disable-guest-agent --disable-gtk --disable-sdl \
