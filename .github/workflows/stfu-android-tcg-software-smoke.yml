@@ -1,0 +1,66 @@
+# Public Android SDK experiment only. Do NOT add proprietary STFU files.
+name: STFU Android TCG software-emulation proof
+on:
+  push:
+    paths:
+      - .github/workflows/stfu-android-tcg-software-smoke.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tcg-android-11:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Require public repository and forbid private assets
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          test "$PRIVATE" = false
+          echo "Official public Android SDK packages and synthetic test only"
+      - name: Install official emulator and Google APIs Android 11
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "SDK=$SDK" >> "$GITHUB_ENV"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SM"
+          yes | "$SM" --sdk_root="$SDK" 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' || test "${PIPESTATUS[1]}" -eq 0
+          "$SDK/emulator/emulator" -version | head -5
+          "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n stfu_tcg_api30 -k 'system-images;android-30;google_apis;x86_64' -d pixel_4 --force
+      - name: Force software CPU emulation and capture boot evidence
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/tcg-results"
+          export ANDROID_I_WANT_MY_TCG=yes
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          export ANDROID_EMULATOR_HOME="$HOME/.android"
+          "$SDK/emulator/emulator" -avd stfu_tcg_api30 -accel off -gpu swiftshader_indirect -no-window -no-audio -no-boot-anim -no-snapshot -memory 2048 -cores 2 -verbose >"$RUNNER_TEMP/tcg-results/emulator.log" 2>&1 &
+          pid=$!
+          echo "emulator_pid=$pid"
+          "$SDK/platform-tools/adb" start-server
+          result=timed_out
+          for i in $(seq 1 120); do
+            if ! kill -0 "$pid" 2>/dev/null; then result=emulator_process_exited; break; fi
+            state=$("$SDK/platform-tools/adb" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+            if [ "$state" = 1 ]; then result=boot_completed; break; fi
+            sleep 8
+          done
+          echo "result=$result" | tee "$RUNNER_TEMP/tcg-results/summary.txt"
+          "$SDK/platform-tools/adb" devices -l | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
+          for prop in ro.build.version.release ro.product.cpu.abilist ro.dalvik.vm.native.bridge; do
+            echo "$prop=$("$SDK/platform-tools/adb" -s emulator-5554 shell getprop "$prop" 2>/dev/null || true)" | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
+          done
+          "$SDK/platform-tools/adb" -s emulator-5554 logcat -d -t 300 >"$RUNNER_TEMP/tcg-results/logcat.txt" 2>&1 || true
+          tail -80 "$RUNNER_TEMP/tcg-results/emulator.log"
+          kill "$pid" 2>/dev/null || true
+          [ "$result" = boot_completed ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-tcg-boot-evidence
+          path: ${{ runner.temp }}/tcg-results/
+          retention-days: 7
