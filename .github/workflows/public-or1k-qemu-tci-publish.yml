@@ -1,0 +1,47 @@
+# Public-source QEMU binary only: no private STFU assets.
+name: Public QEMU TCI OpenRISC publish bridge
+on:
+  workflow_run:
+    workflows:
+      - Public OpenRISC host QEMU TCI cross-build
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful public QEMU cross-build run ID
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.source_run_id || github.event.workflow_run.id }}
+    steps:
+      - name: Download public compiler output only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qemu"
+          gh run download "$RUN_ID" --repo "$GH_REPO" -n public-qemu-openrisc-host-tci-attempt --dir "$RUNNER_TEMP/qemu"
+          test -s "$RUNNER_TEMP/qemu/qemu-system-i386"
+          file "$RUNNER_TEMP/qemu/qemu-system-i386"
+          readelf -h "$RUNNER_TEMP/qemu/qemu-system-i386" | tee "$RUNNER_TEMP/elf-header.txt"
+          grep -q 'OpenRISC' "$RUNNER_TEMP/elf-header.txt"
+          sha256sum "$RUNNER_TEMP/qemu/qemu-system-i386" | tee "$RUNNER_TEMP/qemu-system-i386.sha256"
+      - name: Publish verifiable public GPLv2 QEMU TCI binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="public-or1k-host-qemu-tci-run-$RUN_ID"
+          gh release create "$tag" --repo "$GH_REPO" \
+            --title "Public OpenRISC-host QEMU TCI experimental build $RUN_ID" \
+            --notes "Public QEMU 9.2.2 GPLv2+ binary, built solely from QEMU and other publicly available dependencies. Source: https://download.qemu.org/qemu-9.2.2.tar.xz . Experimental unsupported OpenRISC host; this binary has NOT been boot-tested in ChatGPT." \
+            "$RUNNER_TEMP/qemu/qemu-system-i386" "$RUNNER_TEMP/qemu-system-i386.sha256"
+          echo "RELEASE=$tag"
