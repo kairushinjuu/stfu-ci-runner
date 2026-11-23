@@ -1,0 +1,240 @@
+# Public Google Android 11 system image only, no proprietary game data.
+name: Public Android 11 system image small-piece transport
+on:
+  push:
+    paths:
+      - .github/workflows/stfu-public-sysimg-small-chunks.yml
+permissions:
+  contents: read
+jobs:
+  image-small-chunks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Refuse private repo
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: test "$PRIVATE" = false
+      - name: Install official Android 11 image and create bounded chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --sdk_root="$SDK" 'system-images;android-30;google_apis;x86_64' || test "${PIPESTATUS[1]}" -eq 0
+          mkdir -p "$RUNNER_TEMP/sdk-parts"
+          tar -C "$SDK" -czf "$RUNNER_TEMP/sdk-parts/android11-x86_64.tar.gz" system-images/android-30/google_apis/x86_64
+          (cd "$RUNNER_TEMP/sdk-parts" && sha256sum android11-x86_64.tar.gz > manifest.sha256)
+          split -d -a 2 -b 48M "$RUNNER_TEMP/sdk-parts/android11-x86_64.tar.gz" "$RUNNER_TEMP/sdk-parts/sysimg-"
+          rm "$RUNNER_TEMP/sdk-parts/android11-x86_64.tar.gz"
+          test "$(find "$RUNNER_TEMP/sdk-parts" -name 'sysimg-*' | wc -l)" -le 34
+          ls -lh "$RUNNER_TEMP/sdk-parts"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-chunk-manifest
+          path: ${{ runner.temp }}/sdk-parts/manifest.sha256
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-00
+          path: ${{ runner.temp }}/sdk-parts/sysimg-00
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-01
+          path: ${{ runner.temp }}/sdk-parts/sysimg-01
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-02
+          path: ${{ runner.temp }}/sdk-parts/sysimg-02
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-03
+          path: ${{ runner.temp }}/sdk-parts/sysimg-03
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-04
+          path: ${{ runner.temp }}/sdk-parts/sysimg-04
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-05
+          path: ${{ runner.temp }}/sdk-parts/sysimg-05
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-06
+          path: ${{ runner.temp }}/sdk-parts/sysimg-06
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-07
+          path: ${{ runner.temp }}/sdk-parts/sysimg-07
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-08
+          path: ${{ runner.temp }}/sdk-parts/sysimg-08
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-09
+          path: ${{ runner.temp }}/sdk-parts/sysimg-09
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-10
+          path: ${{ runner.temp }}/sdk-parts/sysimg-10
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-11
+          path: ${{ runner.temp }}/sdk-parts/sysimg-11
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-12
+          path: ${{ runner.temp }}/sdk-parts/sysimg-12
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-13
+          path: ${{ runner.temp }}/sdk-parts/sysimg-13
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-14
+          path: ${{ runner.temp }}/sdk-parts/sysimg-14
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-15
+          path: ${{ runner.temp }}/sdk-parts/sysimg-15
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-16
+          path: ${{ runner.temp }}/sdk-parts/sysimg-16
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-17
+          path: ${{ runner.temp }}/sdk-parts/sysimg-17
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-18
+          path: ${{ runner.temp }}/sdk-parts/sysimg-18
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-19
+          path: ${{ runner.temp }}/sdk-parts/sysimg-19
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-20
+          path: ${{ runner.temp }}/sdk-parts/sysimg-20
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-21
+          path: ${{ runner.temp }}/sdk-parts/sysimg-21
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-22
+          path: ${{ runner.temp }}/sdk-parts/sysimg-22
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-23
+          path: ${{ runner.temp }}/sdk-parts/sysimg-23
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-24
+          path: ${{ runner.temp }}/sdk-parts/sysimg-24
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-25
+          path: ${{ runner.temp }}/sdk-parts/sysimg-25
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-26
+          path: ${{ runner.temp }}/sdk-parts/sysimg-26
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-27
+          path: ${{ runner.temp }}/sdk-parts/sysimg-27
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-28
+          path: ${{ runner.temp }}/sdk-parts/sysimg-28
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-29
+          path: ${{ runner.temp }}/sdk-parts/sysimg-29
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-30
+          path: ${{ runner.temp }}/sdk-parts/sysimg-30
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-31
+          path: ${{ runner.temp }}/sdk-parts/sysimg-31
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-32
+          path: ${{ runner.temp }}/sdk-parts/sysimg-32
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-api30-48mb-33
+          path: ${{ runner.temp }}/sdk-parts/sysimg-33
+          compression-level: 0
+          retention-days: 1
