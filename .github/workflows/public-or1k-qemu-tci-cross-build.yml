@@ -119,7 +119,7 @@ jobs:
           export PKG_CONFIG_PATH="$TARGET_SYSROOT/lib/pkgconfig"
           export PKG_CONFIG_LIBDIR="$TARGET_SYSROOT/lib/pkgconfig"
           cd "$RUNNER_TEMP/src-qemu"
-          ./configure --cross-prefix="$PREFIX" --target-list=i386-softmmu --enable-tcg-interpreter \
+          ./configure --cross-prefix="$PREFIX" --cpu=or1k --target-list=i386-softmmu --enable-tcg-interpreter \
             --disable-docs --disable-tools --disable-guest-agent --disable-gtk --disable-sdl \
             --disable-vnc --disable-curses --disable-slirp --disable-tpm --disable-opengl \
             --disable-spice --disable-capstone --disable-virtfs --disable-plugins --disable-werror \
