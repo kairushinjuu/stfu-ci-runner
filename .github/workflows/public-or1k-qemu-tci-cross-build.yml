@@ -67,6 +67,21 @@ jobs:
             -DPCRE2_BUILD_TESTS=OFF -DPCRE2_BUILD_PCRE2GREP=OFF
           cmake --build "$RUNNER_TEMP/pcre2-build" --parallel 3
           cmake --install "$RUNNER_TEMP/pcre2-build"
+      - name: Libffi target static library (OpenRISC supported in GNU libffi)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://github.com/libffi/libffi/releases/download/v3.8.1/libffi-3.8.1.tar.gz" -o "$RUNNER_TEMP/libffi.tar.gz"
+          mkdir -p "$RUNNER_TEMP/src-libffi"
+          tar -xzf "$RUNNER_TEMP/libffi.tar.gz" -C "$RUNNER_TEMP/src-libffi" --strip-components=1
+          mkdir -p "$RUNNER_TEMP/libffi-build"
+          cd "$RUNNER_TEMP/libffi-build"
+          "$RUNNER_TEMP/src-libffi/configure" --host=or1k-none-linux-musl \
+            --prefix="$TARGET_SYSROOT" --disable-shared --enable-static \
+            CC="$PREFIX"gcc AR="$PREFIX"ar RANLIB="$PREFIX"ranlib
+          make -j 3
+          make install
+          test -f "$TARGET_SYSROOT/lib/pkgconfig/libffi.pc" || find "$TARGET_SYSROOT" -name libffi.pc -print
       - name: GLib target static libraries
         shell: bash
         run: |
