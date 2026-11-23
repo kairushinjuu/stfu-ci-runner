@@ -32,7 +32,13 @@ jobs:
           test -x "$SM"
           yes | "$SM" --sdk_root="$SDK" 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' || test "${PIPESTATUS[1]}" -eq 0
           "$SDK/emulator/emulator" -version | head -5
+          mkdir -p "$HOME/.android/avd"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
           "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n stfu_tcg_api30 -k 'system-images;android-30;google_apis;x86_64' -d pixel_4 --force
+          echo "AVD entries after creation:"
+          "$SDK/emulator/emulator" -list-avds
+          find "$HOME/.android" -maxdepth 4 -name 'stfu_tcg_api30.ini' -print
+          test -f "$ANDROID_AVD_HOME/stfu_tcg_api30.ini"
       - name: Force software CPU emulation and capture boot evidence
         shell: bash
         timeout-minutes: 8
