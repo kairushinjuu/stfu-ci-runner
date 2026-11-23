@@ -54,6 +54,7 @@ jobs:
           ./configure \
             --target-list=i386-softmmu \
             --cross-prefix="$prefix-" \
+            --cpu=or1k \
             --enable-tcg-interpreter \
             --disable-docs --disable-tools --disable-user \
             --disable-gtk --disable-sdl --disable-vnc --disable-curses \
