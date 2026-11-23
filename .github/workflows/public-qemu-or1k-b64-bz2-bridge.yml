@@ -1,0 +1,73 @@
+# Public QEMU from public release only. No proprietary game data.
+name: Publish OpenRISC QEMU TCI as checksum-verified Git text pieces
+on:
+  push:
+    paths:
+      - .github/workflows/public-qemu-or1k-b64-bz2-bridge.yml
+permissions:
+  contents: write
+jobs:
+  repack:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Verify and compress public OpenRISC QEMU ELF
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p generated/openrisc-qemu-tci
+          cd generated/openrisc-qemu-tci
+          gh release download public-or1k-host-qemu-tci-run-45165239556 --repo "$GITHUB_REPOSITORY" --pattern qemu-system-i386
+          echo "3b96e109ee32a9598726ff9ad61c1c33bfa6f69634a69d0a66af8acb81149fd8  qemu-system-i386" | sha256sum -c -
+          file qemu-system-i386
+          readelf -h qemu-system-i386 | grep -E 'ELF32|OpenRISC|EXEC'
+          bzip2 -9 -k qemu-system-i386
+          sha256sum qemu-system-i386.bz2
+          mkdir -p pieces
+          split --bytes=600000 --numeric-suffixes=0 --suffix-length=2 qemu-system-i386.bz2 pieces/part
+          python3 - <<'PY'
+          import hashlib, json, pathlib, base64
+          root=pathlib.Path(".")
+          original=(root/"qemu-system-i386").read_bytes()
+          compressed=(root/"qemu-system-i386.bz2").read_bytes()
+          manifest={
+            "schema":"stfu-or1k-elf-parts-v1",
+            "filename":"qemu_system_i386",
+            "architecture":"OpenRISC ELF32 big-endian",
+            "compression":"bzip2",
+            "totalBytes":len(compressed),
+            "sha256":hashlib.sha256(compressed).hexdigest(),
+            "uncompressedBytes":len(original),
+            "uncompressedSha256":hashlib.sha256(original).hexdigest(),
+            "parts":[]
+          }
+          for p in sorted((root/"pieces").iterdir()):
+            data=p.read_bytes()
+            name=p.name+".b64"
+            (root/"pieces"/name).write_text(base64.b64encode(data).decode("ascii"))
+            manifest["parts"].append({
+              "path":"generated/openrisc-qemu-tci/pieces/"+name,
+              "bytes":len(data),
+              "sha256":hashlib.sha256(data).hexdigest()
+            })
+            p.unlink()
+          assert len(manifest["parts"])<=20 and manifest["totalBytes"]<=12000000, "Oversized compressed QEMU; adjust transport"
+          (root/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+          print(json.dumps({"chunks":len(manifest["parts"]),"compressed":manifest["totalBytes"],"original":len(original),"sha":manifest["uncompressedSha256"]}))
+          PY
+          rm qemu-system-i386 qemu-system-i386.bz2
+      - name: Commit public source QEMU binary as verified base64 text pieces
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/openrisc-qemu-tci/
+          git commit -m "Publish verified OpenRISC-host QEMU TCI compressed text transport"
+          git push
