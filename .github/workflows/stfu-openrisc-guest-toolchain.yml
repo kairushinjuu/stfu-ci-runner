@@ -47,6 +47,15 @@ jobs:
           file "$RUNNER_TEMP/or1k-output/guest_probe.or1k"
           sha256sum "$RUNNER_TEMP/or1k-output/guest_probe.or1k" | tee "$RUNNER_TEMP/or1k-output/manifest.sha256"
           test "$(stat -c%s "$RUNNER_TEMP/or1k-output/guest_probe.or1k")" -lt 1048576
+      - name: Expose public test executable as base64 for verified connector recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/or1k-output/guest_probe.or1k"
+          test "$(stat -c%s "$BIN")" -lt 131072
+          printf 'STFU_ELF_B64_BEGIN\\n'
+          base64 -w 0 "$BIN"
+          printf '\\nSTFU_ELF_B64_END\\n'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
