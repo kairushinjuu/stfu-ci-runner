@@ -35,7 +35,7 @@ jobs:
           "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n stfu_tcg_api30 -k 'system-images;android-30;google_apis;x86_64' -d pixel_4 --force
       - name: Force software CPU emulation and capture boot evidence
         shell: bash
-        timeout-minutes: 20
+        timeout-minutes: 8
         run: |
           set -uo pipefail
           mkdir -p "$RUNNER_TEMP/tcg-results"
@@ -47,18 +47,20 @@ jobs:
           echo "emulator_pid=$pid"
           "$SDK/platform-tools/adb" start-server
           result=timed_out
-          for i in $(seq 1 120); do
+          for i in $(seq 1 40); do
             if ! kill -0 "$pid" 2>/dev/null; then result=emulator_process_exited; break; fi
-            state=$("$SDK/platform-tools/adb" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+            state=$(timeout 3s "$SDK/platform-tools/adb" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
             if [ "$state" = 1 ]; then result=boot_completed; break; fi
             sleep 8
           done
           echo "result=$result" | tee "$RUNNER_TEMP/tcg-results/summary.txt"
-          "$SDK/platform-tools/adb" devices -l | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
+          echo "=== Startup log tail ==="
+          tail -120 "$RUNNER_TEMP/tcg-results/emulator.log" || true
+          timeout 4s "$SDK/platform-tools/adb" devices -l | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
           for prop in ro.build.version.release ro.product.cpu.abilist ro.dalvik.vm.native.bridge; do
-            echo "$prop=$("$SDK/platform-tools/adb" -s emulator-5554 shell getprop "$prop" 2>/dev/null || true)" | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
+            echo "$prop=$(timeout 3s "$SDK/platform-tools/adb" -s emulator-5554 shell getprop "$prop" 2>/dev/null || true)" | tee -a "$RUNNER_TEMP/tcg-results/summary.txt"
           done
-          "$SDK/platform-tools/adb" -s emulator-5554 logcat -d -t 300 >"$RUNNER_TEMP/tcg-results/logcat.txt" 2>&1 || true
+          timeout 8s "$SDK/platform-tools/adb" -s emulator-5554 logcat -d -t 300 >"$RUNNER_TEMP/tcg-results/logcat.txt" 2>&1 || true
           tail -80 "$RUNNER_TEMP/tcg-results/emulator.log"
           kill "$pid" 2>/dev/null || true
           [ "$result" = boot_completed ]
