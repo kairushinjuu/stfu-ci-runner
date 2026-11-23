@@ -135,6 +135,19 @@ jobs:
           ninja -C build -j 3 qemu-system-i386
           file build/qemu-system-i386
           readelf -h build/qemu-system-i386 | head -30
+          # Stage117: preserve unstripped OpenRISC symbols and source mapping for
+          # QEMU SIGBUS at guest PC 0x00ae180c (misaligned store to 0x8072).
+          mkdir -p "$RUNNER_TEMP/qemu-artifacts"
+          {
+            echo "=== QEMU unstripped symbol for PC 0x00ae180c ==="
+            "$PREFIX"addr2line -e build/qemu-system-i386 -a -f -C -i 0x00ae180c 0x00ae1800 0x00ae17f4 || true
+            echo "=== QEMU OpenRISC instructions around fault ==="
+            "$PREFIX"objdump -d -C --start-address=0x00ae17c0 --stop-address=0x00ae1860 build/qemu-system-i386 || true
+            echo "=== ELF section and program layout ==="
+            "$PREFIX"readelf -SWl build/qemu-system-i386 || true
+            echo "=== Nearest symbols ==="
+            "$PREFIX"nm -n -C build/qemu-system-i386 | awk '$1 <= "00ae180c" {a=$0} END {print a}' || true
+          } > "$RUNNER_TEMP/qemu-artifacts/stage117-qemu-symbol-diagnostics.txt" 2>&1
           "$PREFIX"strip build/qemu-system-i386 || true
           sha256sum build/qemu-system-i386
           mkdir -p "$RUNNER_TEMP/qemu-artifacts"
