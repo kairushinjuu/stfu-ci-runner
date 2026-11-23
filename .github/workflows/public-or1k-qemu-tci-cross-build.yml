@@ -1,0 +1,124 @@
+# Public-source-only QEMU TCI cross-build for OpenRISC host. No proprietary STFU game data.
+name: Public OpenRISC host QEMU TCI cross-build
+on:
+  push:
+    paths:
+      - .github/workflows/public-or1k-qemu-tci-cross-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Reject private repositories
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: test "$PRIVATE" = false
+      - name: Install host build utilities
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build meson pkg-config python3-pip cmake autoconf automake libtool gettext curl xz-utils git make bison flex
+      - name: OpenRISC musl toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://github.com/stffrdhrn/or1k-toolchain-build/releases/download/or1k-16.1.0-20260704/or1k-none-linux-musl-16.1.0-20260704.tar.xz" -o "$RUNNER_TEMP/toolchain.tar.xz"
+          mkdir -p "$RUNNER_TEMP/toolchain" "$RUNNER_TEMP/target-sysroot/lib/pkgconfig" "$RUNNER_TEMP/target-sysroot/include"
+          tar -xf "$RUNNER_TEMP/toolchain.tar.xz" -C "$RUNNER_TEMP/toolchain"
+          cc="$(find "$RUNNER_TEMP/toolchain" -type f -path '*/bin/*-gcc' | head -1)"
+          test -x "$cc"
+          prefix="$(dirname "$cc")/$(basename "$cc" gcc)"
+          echo "PREFIX=$prefix" >> "$GITHUB_ENV"
+          echo "TARGET_SYSROOT=$RUNNER_TEMP/target-sysroot" >> "$GITHUB_ENV"
+          cat > "$RUNNER_TEMP/openrisc.ini" <<EOF
+          [binaries]
+          c = '$cc'
+          cpp = '$(dirname "$cc")/$(basename "$cc" gcc)g++'
+          ar = '$(dirname "$cc")/$(basename "$cc" gcc)ar'
+          strip = '$(dirname "$cc")/$(basename "$cc" gcc)strip'
+          pkg-config = '/usr/bin/pkg-config'
+          [properties]
+          needs_exe_wrapper = true
+          [built-in options]
+          c_args = ['-I$RUNNER_TEMP/target-sysroot/include']
+          c_link_args = ['-L$RUNNER_TEMP/target-sysroot/lib']
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'openrisc'
+          cpu = 'or1k'
+          endian = 'big'
+          EOF
+          echo "CROSS_FILE=$RUNNER_TEMP/openrisc.ini" >> "$GITHUB_ENV"
+          "$cc" --version | head -1
+      - name: PCRE2 target static library
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.tar.gz" -o "$RUNNER_TEMP/pcre2.tar.gz"
+          mkdir -p "$RUNNER_TEMP/src-pcre2"
+          tar -xzf "$RUNNER_TEMP/pcre2.tar.gz" -C "$RUNNER_TEMP/src-pcre2" --strip-components=1
+          cmake -S "$RUNNER_TEMP/src-pcre2" -B "$RUNNER_TEMP/pcre2-build" -G Ninja \
+            -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=or1k \
+            -DCMAKE_C_COMPILER="$PREFIX"gcc -DCMAKE_AR="$PREFIX"ar -DCMAKE_RANLIB="$PREFIX"ranlib \
+            -DCMAKE_INSTALL_PREFIX="$TARGET_SYSROOT" -DBUILD_SHARED_LIBS=OFF \
+            -DPCRE2_BUILD_PCRE2_8=ON -DPCRE2_BUILD_PCRE2_16=OFF -DPCRE2_BUILD_PCRE2_32=OFF \
+            -DPCRE2_BUILD_TESTS=OFF -DPCRE2_BUILD_PCRE2GREP=OFF
+          cmake --build "$RUNNER_TEMP/pcre2-build" --parallel 3
+          cmake --install "$RUNNER_TEMP/pcre2-build"
+      - name: GLib target static libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://download.gnome.org/sources/glib/2.82/glib-2.82.5.tar.xz" -o "$RUNNER_TEMP/glib.tar.xz"
+          mkdir -p "$RUNNER_TEMP/src-glib"
+          tar -xf "$RUNNER_TEMP/glib.tar.xz" -C "$RUNNER_TEMP/src-glib" --strip-components=1
+          export PKG_CONFIG_PATH="$TARGET_SYSROOT/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$TARGET_SYSROOT/lib/pkgconfig"
+          meson setup "$RUNNER_TEMP/glib-build" "$RUNNER_TEMP/src-glib" \
+            --cross-file "$CROSS_FILE" --prefix "$TARGET_SYSROOT" --default-library static \
+            -Dtests=false -Dinstalled_tests=false -Dintrospection=disabled -Dselinux=disabled -Dlibmount=disabled -Dman-pages=disabled
+          meson compile -C "$RUNNER_TEMP/glib-build" -j 3
+          meson install -C "$RUNNER_TEMP/glib-build"
+      - name: Pixman target static library
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://www.cairographics.org/releases/pixman-0.44.2.tar.gz" -o "$RUNNER_TEMP/pixman.tar.gz"
+          mkdir -p "$RUNNER_TEMP/src-pixman"
+          tar -xzf "$RUNNER_TEMP/pixman.tar.gz" -C "$RUNNER_TEMP/src-pixman" --strip-components=1
+          export PKG_CONFIG_PATH="$TARGET_SYSROOT/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$TARGET_SYSROOT/lib/pkgconfig"
+          meson setup "$RUNNER_TEMP/pixman-build" "$RUNNER_TEMP/src-pixman" --cross-file "$CROSS_FILE" \
+            --prefix "$TARGET_SYSROOT" --default-library static -Dtests=disabled -Ddemos=disabled
+          meson compile -C "$RUNNER_TEMP/pixman-build" -j 3
+          meson install -C "$RUNNER_TEMP/pixman-build"
+      - name: QEMU 9.2.2 system TCI host=OpenRISC
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://download.qemu.org/qemu-9.2.2.tar.xz" -o "$RUNNER_TEMP/qemu.tar.xz"
+          mkdir -p "$RUNNER_TEMP/src-qemu"
+          tar -xf "$RUNNER_TEMP/qemu.tar.xz" -C "$RUNNER_TEMP/src-qemu" --strip-components=1
+          export PKG_CONFIG_PATH="$TARGET_SYSROOT/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$TARGET_SYSROOT/lib/pkgconfig"
+          cd "$RUNNER_TEMP/src-qemu"
+          ./configure --cross-prefix="$PREFIX" --target-list=i386-softmmu --enable-tcg-interpreter \
+            --disable-docs --disable-tools --disable-guest-agent --disable-gtk --disable-sdl \
+            --disable-vnc --disable-curses --disable-slirp --disable-tpm --disable-opengl \
+            --disable-spice --disable-capstone --disable-virtfs --disable-plugins --disable-werror \
+            --extra-cflags="-I$TARGET_SYSROOT/include" --extra-ldflags="-L$TARGET_SYSROOT/lib"
+          ninja -C build -j 3 qemu-system-i386
+          file build/qemu-system-i386
+          readelf -h build/qemu-system-i386 | head -30
+          "$PREFIX"strip build/qemu-system-i386 || true
+          sha256sum build/qemu-system-i386
+          mkdir -p "$RUNNER_TEMP/qemu-artifacts"
+          cp build/qemu-system-i386 "$RUNNER_TEMP/qemu-artifacts/"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-qemu-openrisc-host-tci-attempt
+          path: ${{ runner.temp }}/qemu-artifacts/
+          retention-days: 7
