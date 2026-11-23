@@ -148,6 +148,9 @@ jobs:
             echo "=== Nearest symbols ==="
             "$PREFIX"nm -n -C build/qemu-system-i386 | awk '$1 <= "00ae180c" {a=$0} END {print a}' || true
           } > "$RUNNER_TEMP/qemu-artifacts/stage117-qemu-symbol-diagnostics.txt" 2>&1
+          echo "=== STAGE117 SYMBOL DIAGNOSTICS BEGIN ==="
+          sed -n "1,150p" "$RUNNER_TEMP/qemu-artifacts/stage117-qemu-symbol-diagnostics.txt"
+          echo "=== STAGE117 SYMBOL DIAGNOSTICS END ==="
           "$PREFIX"strip build/qemu-system-i386 || true
           sha256sum build/qemu-system-i386
           mkdir -p "$RUNNER_TEMP/qemu-artifacts"
