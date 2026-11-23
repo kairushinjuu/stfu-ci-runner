@@ -1,0 +1,99 @@
+# Public official SDK only, deliberately <50 MiB per artifact for restricted sandboxes.
+name: Public Android emulator small-piece transport
+on:
+  push:
+    paths:
+      - .github/workflows/stfu-public-emulator-small-chunks.yml
+permissions:
+  contents: read
+jobs:
+  emulator-small-chunks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Refuse private repositories
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: test "$PRIVATE" = false
+      - name: Package Google Android emulator in <50MiB pieces
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --sdk_root="$SDK" 'emulator' || test "${PIPESTATUS[1]}" -eq 0
+          mkdir -p "$RUNNER_TEMP/sdk-parts"
+          tar -C "$SDK" -czf "$RUNNER_TEMP/sdk-parts/android-emulator.tar.gz" emulator
+          (cd "$RUNNER_TEMP/sdk-parts" && sha256sum android-emulator.tar.gz > manifest.sha256)
+          split -d -a 2 -b 48M "$RUNNER_TEMP/sdk-parts/android-emulator.tar.gz" "$RUNNER_TEMP/sdk-parts/emulator-"
+          rm "$RUNNER_TEMP/sdk-parts/android-emulator.tar.gz"
+          ls -lh "$RUNNER_TEMP/sdk-parts"
+          test "$(find "$RUNNER_TEMP/sdk-parts" -name 'emulator-*' | wc -l)" -le 9
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-sdk-emulator-chunk-manifest
+          path: ${{ runner.temp }}/sdk-parts/manifest.sha256
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '00')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-00
+          path: ${{ runner.temp }}/sdk-parts/emulator-00
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '01')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-01
+          path: ${{ runner.temp }}/sdk-parts/emulator-01
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '02')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-02
+          path: ${{ runner.temp }}/sdk-parts/emulator-02
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '03')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-03
+          path: ${{ runner.temp }}/sdk-parts/emulator-03
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '04')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-04
+          path: ${{ runner.temp }}/sdk-parts/emulator-04
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '05')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-05
+          path: ${{ runner.temp }}/sdk-parts/emulator-05
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '06')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-06
+          path: ${{ runner.temp }}/sdk-parts/emulator-06
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '07')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-07
+          path: ${{ runner.temp }}/sdk-parts/emulator-07
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles(format('{0}/sdk-parts/emulator-{1}', runner.temp, '08')) != '' }}
+        with:
+          name: official-sdk-emulator-48mb-08
+          path: ${{ runner.temp }}/sdk-parts/emulator-08
+          compression-level: 0
+          retention-days: 7
