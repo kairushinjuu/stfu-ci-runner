@@ -1,0 +1,57 @@
+{
+  "schema": "stfu-or1k-elf-parts-v1",
+  "filename": "qemu_system_i386",
+  "architecture": "OpenRISC ELF32 big-endian",
+  "compression": "bzip2",
+  "totalBytes": 5392673,
+  "sha256": "b23a178703dc4e58d54a76b27cc9c0d0a358c790a51d3cda7507bc5e0611883b",
+  "uncompressedBytes": 22071892,
+  "uncompressedSha256": "3b96e109ee32a9598726ff9ad61c1c33bfa6f69634a69d0a66af8acb81149fd8",
+  "parts": [
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part00.b64",
+      "bytes": 600000,
+      "sha256": "58e2ba821e27081a1629783ff9c02c46faba1d702e09466ea3ea5e42fbee7407"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part01.b64",
+      "bytes": 600000,
+      "sha256": "09b68dd038b35f9506fafcabcec41bc803e80675c01006d03057328a79b4329e"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part02.b64",
+      "bytes": 600000,
+      "sha256": "6e6c38326261f3c85dccb5ef193b55a651b44141d651c5d9abeb0f86b1cae2ee"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part03.b64",
+      "bytes": 600000,
+      "sha256": "fee5ff6ccacad63802ca3eb0a29711df44207a57f73accb9a6ee81246862e832"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part04.b64",
+      "bytes": 600000,
+      "sha256": "1a358457e7b0e4c862a05834e4636659d69b789dabeab8ab1f7781874c0f262b"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part05.b64",
+      "bytes": 600000,
+      "sha256": "9f170d1671fc5927cce8047421fd9fcbb608c537c9b85c2c957635882bd4e96b"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part06.b64",
+      "bytes": 600000,
+      "sha256": "7f4e981afca16c7433fae95fe96010ecdd0949c767fe84ef0d2178fe52bdebc9"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part07.b64",
+      "bytes": 600000,
+      "sha256": "a5828e88faf5d93908437810314fbda9b2a9fcb0774846dcd3379614d996bfa4"
+    },
+    {
+      "path": "generated/openrisc-qemu-tci/pieces/part08.b64",
+      "bytes": 592673,
+      "sha256": "614e62737585e5095175ea84088d21a9773c847a43c7f595172d763d63b2fb77"
+    }
+  ]
+}
