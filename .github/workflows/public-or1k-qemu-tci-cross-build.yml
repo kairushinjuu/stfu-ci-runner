@@ -78,7 +78,7 @@ jobs:
           cd "$RUNNER_TEMP/libffi-build"
           "$RUNNER_TEMP/src-libffi/configure" --host=or1k-none-linux-musl \
             --prefix="$TARGET_SYSROOT" --disable-shared --enable-static \
-            CC="$PREFIX"gcc AR="$PREFIX"ar RANLIB="$PREFIX"ranlib
+            CC="$PREFIX"gcc AR="$PREFIX"ar RANLIB="$PREFIX"ranlib CFLAGS="-O2 -fPIC"
           make -j 3
           make install
           test -f "$TARGET_SYSROOT/lib/pkgconfig/libffi.pc" || find "$TARGET_SYSROOT" -name libffi.pc -print
@@ -127,7 +127,7 @@ jobs:
           chmod +x "$PREFIX"pkg-config
           "$PREFIX"pkg-config --modversion glib-2.0 pixman-1
           cd "$RUNNER_TEMP/src-qemu"
-          ./configure --cross-prefix="$PREFIX" --cpu=or1k --target-list=i386-softmmu --enable-tcg-interpreter \
+          ./configure --cross-prefix="$PREFIX" --cpu=or1k --target-list=i386-softmmu --enable-tcg-interpreter --static --disable-pie \
             --disable-docs --disable-tools --disable-guest-agent --disable-gtk --disable-sdl \
             --disable-vnc --disable-curses --disable-slirp --disable-tpm --disable-opengl \
             --disable-spice --disable-capstone --disable-virtfs --disable-plugins --disable-werror \
