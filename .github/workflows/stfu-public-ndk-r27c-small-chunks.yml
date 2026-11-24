@@ -1,0 +1,68 @@
+name: Stage122 public NDK r27c bounded chunks
+on:
+  push:
+    paths:
+      - '.github/workflows/stfu-public-ndk-r27c-small-chunks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ndk-small-chunks:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse private repositories
+        run: |
+          test "${{ github.event.repository.private }}" = "false"
+      - name: Download official NDK r27c and split into bounded chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://dl.google.com/android/repository/android-ndk-r27c-linux.zip'
+          EXPECTED='59c2f6dc96743b5daf5d1626684640b20a6bd2b1d85b13156b90333741bad5cc'
+          curl -fL --retry 4 -o android-ndk-r27c-linux.zip "$URL"
+          echo "$EXPECTED  android-ndk-r27c-linux.zip" | sha256sum -c -
+          unzip -tq android-ndk-r27c-linux.zip >/dev/null
+          split -b 48M -d -a 2 android-ndk-r27c-linux.zip ndk-r27c-
+          printf '%s  %s\n' "$EXPECTED" android-ndk-r27c-linux.zip > manifest.sha256
+          ls -lh ndk-r27c-* manifest.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-ndk-r27c-chunk-manifest
+          path: manifest.sha256
+          retention-days: 1
+      - name: Upload bounded chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in ndk-r27c-*; do
+            n="${f##*-}"
+            echo "chunk=$n path=$f" >> "$GITHUB_OUTPUT"
+          done
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-00, path: ndk-r27c-00, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-01, path: ndk-r27c-01, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-02, path: ndk-r27c-02, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-03, path: ndk-r27c-03, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-04, path: ndk-r27c-04, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-05, path: ndk-r27c-05, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-06, path: ndk-r27c-06, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-07, path: ndk-r27c-07, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-08, path: ndk-r27c-08, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-09, path: ndk-r27c-09, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-10, path: ndk-r27c-10, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-11, path: ndk-r27c-11, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-12, path: ndk-r27c-12, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: official-ndk-r27c-48mb-13, path: ndk-r27c-13, retention-days: 1}
