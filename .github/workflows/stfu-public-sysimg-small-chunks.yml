@@ -1,4 +1,5 @@
 # Public Google Android 11 system image only, no proprietary game data.
+# Stage122 regeneration: refresh bounded 48 MiB transport artifacts.
 name: Public Android 11 system image small-piece transport
 on:
   push:
